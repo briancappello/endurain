@@ -1,0 +1,266 @@
+diff --git a/frontend/app/src/views/ActivityView.vue b/frontend/app/src/views/ActivityView.vue
+index deed3ea..9cfee14 100644
+--- a/frontend/app/src/views/ActivityView.vue
++++ b/frontend/app/src/views/ActivityView.vue
+@@ -64,9 +64,90 @@
+         :activityActivityMedia="activityActivityMedia"
+         :source="'activity'"
+         @activityMediaDeleted="removeMediaFromActivity"
++        ref="activityMapRef"
+       />
+     </div>
+ 
++    <!-- custom: elevation chart (subgraph of map) -->
++    <div v-if="elevationStream && elevationStream.length > 0" style="margin-top:-4px;">
++      <ActivityElevationSpeedChartComponent
++        :streamData="elevationStream"
++        fieldName="ele"
++        label="Elevation"
++        color="rgba(34, 197, 94, 0.8)"
++        gradientColor="34, 197, 94"
++        :totalDistance="activity.distance"
++        :units="units"
++        :height="100"
++        :segments="activitySegments"
++        :hoveredIndex="chartHoveredIndex"
++        :showXAxis="false"
++        @positionHover="onChartPositionHover"
++        @positionLeave="onChartPositionLeave"
++      />
++    </div>
++
++    <!-- custom: speed chart (subgraph of map) -->
++    <div v-if="speedStream && speedStream.length > 0" style="margin-top:-4px;">
++      <ActivityElevationSpeedChartComponent
++        :streamData="speedStream"
++        fieldName="vel"
++        label="Speed"
++        color="rgba(59, 130, 246, 0.8)"
++        gradientColor="59, 130, 246"
++        :totalDistance="activity.distance"
++        :units="units"
++        :height="80"
++        :segments="activitySegments"
++        :hoveredIndex="chartHoveredIndex"
++        :showXAxis="false"
++        @positionHover="onChartPositionHover"
++        @positionLeave="onChartPositionLeave"
++      />
++    </div>
++
++    <!-- custom: heart rate chart (subgraph of map) -->
++    <div v-if="hrStream && hrStream.length > 0" style="margin-top:-4px;">
++      <ActivityElevationSpeedChartComponent
++        :streamData="hrStream"
++        fieldName="hr"
++        label="Heart Rate"
++        color="rgba(239, 68, 68, 0.8)"
++        gradientColor="239, 68, 68"
++        :totalDistance="activity.distance"
++        :units="units"
++        :height="80"
++        :segments="activitySegments"
++        :hoveredIndex="chartHoveredIndex"
++        :showXAxis="true"
++        @positionHover="onChartPositionHover"
++        @positionLeave="onChartPositionLeave"
++      />
++    </div>
++
++    <!-- custom: trail description -->
++    <div v-if="trailDescription" class="mt-2 mb-2">
++      <p class="pt-2 mb-1">
++        <span class="fw-lighter">Trails</span>
++      </p>
++      <p class="mb-2" style="font-size:0.9rem;color:var(--bs-secondary-color);font-style:italic;">{{ trailDescription }}</p>
++    </div>
++
++    <!-- custom: segments and laps tabs -->
++    <ActivitySegmentsLapsComponent
++      v-if="(activitySegments && activitySegments.length > 0) || (customActivityLaps && customActivityLaps.length > 0)"
++      :segments="activitySegments"
++      :laps="customActivityLaps"
++      :hoveredSegmentId="hoveredSegmentId"
++      :hoveredLapId="hoveredLapId"
++      :units="units"
++      :activity="activity"
++      @segmentHover="(seg) => { hoveredSegmentId = seg.id; activityMapRef?.highlightSegment(seg.latlngs) }"
++      @segmentLeave="() => { hoveredSegmentId = null; activityMapRef?.clearSegmentHighlight() }"
++      @lapHover="(lap) => { hoveredLapId = lap.id; activityMapRef?.highlightSegment(lap.latlngs) }"
++      @lapLeave="() => { hoveredLapId = null; activityMapRef?.clearSegmentHighlight() }"
++    />
++
+     <!-- gear zone -->
+     <hr
+       class="mb-2 mt-2"
+@@ -171,68 +252,6 @@
+       </div>
+     </div>
+ 
+-    <!-- graphs -->
+-    <hr
+-      class="mb-2 mt-2"
+-      v-if="
+-        activity &&
+-        ((activityActivityLaps && activityActivityLaps.length > 0) ||
+-          (activityActivityWorkoutSteps && activityActivityWorkoutSteps.length > 0) ||
+-          (activityActivitySets && activityActivitySets.length > 0) ||
+-          (activityActivityStreams && activityActivityStreams.length > 0))
+-      "
+-    />
+-
+-    <!-- graphs and laps medium and above screens -->
+-    <div class="d-none d-lg-block" v-if="isLoading">
+-      <LoadingComponent />
+-    </div>
+-    <div
+-      class="d-none d-lg-block"
+-      v-else-if="
+-        activity &&
+-        ((activityActivityLaps && activityActivityLaps.length > 0) ||
+-          (activityActivityWorkoutSteps && activityActivityWorkoutSteps.length > 0) ||
+-          (activityActivitySets && activityActivitySets.length > 0) ||
+-          (activityActivityStreams && activityActivityStreams.length > 0))
+-      "
+-    >
+-      <ActivityMandAbovePillsComponent
+-        :activity="activity"
+-        :activityActivityLaps="activityActivityLaps"
+-        :activityActivityWorkoutSteps="activityActivityWorkoutSteps"
+-        :activityActivityStreams="activityActivityStreams"
+-        :units="units"
+-        :activityActivityExerciseTitles="activityActivityExerciseTitles"
+-        :activityActivitySets="activityActivitySets"
+-      />
+-    </div>
+-
+-    <!-- graphs and laps screens bellow medium -->
+-    <div class="d-lg-none d-block" v-if="isLoading">
+-      <LoadingComponent />
+-    </div>
+-    <div
+-      class="d-lg-none d-block"
+-      v-else-if="
+-        activity &&
+-        ((activityActivityLaps && activityActivityLaps.length > 0) ||
+-          (activityActivityWorkoutSteps && activityActivityWorkoutSteps.length > 0) ||
+-          (activityActivitySets && activityActivitySets.length > 0) ||
+-          (activityActivityStreams && activityActivityStreams.length > 0))
+-      "
+-    >
+-      <ActivityBellowMPillsComponent
+-        :activity="activity"
+-        :activityActivityLaps="activityActivityLaps"
+-        :activityActivityWorkoutSteps="activityActivityWorkoutSteps"
+-        :activityActivityStreams="activityActivityStreams"
+-        :units="units"
+-        :activityActivityExerciseTitles="activityActivityExerciseTitles"
+-        :activityActivitySets="activityActivitySets"
+-      />
+-    </div>
+-
+     <!-- back button -->
+     <BackButtonComponent />
+   </div>
+@@ -250,6 +269,8 @@ import { push } from 'notivue'
+ // Importing the components
+ import ActivitySummaryComponent from '@/components/Activities/ActivitySummaryComponent.vue'
+ import ActivityMapComponent from '@/components/Activities/ActivityMapComponent.vue'
++import ActivitySegmentsLapsComponent from '@/components/Activities/ActivitySegmentsLapsComponent.vue'
++import ActivityElevationSpeedChartComponent from '@/components/Activities/ActivityElevationSpeedChartComponent.vue'
+ import ActivityMandAbovePillsComponent from '@/components/Activities/ActivityMandAbovePillsComponent.vue'
+ import ActivityBellowMPillsComponent from '@/components/Activities/ActivityBellowMPillsComponent.vue'
+ import LoadingComponent from '@/components/GeneralComponents/LoadingComponent.vue'
+@@ -266,6 +287,7 @@ import { activityWorkoutSteps } from '@/services/activityWorkoutStepsService'
+ import { activityExerciseTitles } from '@/services/activityExerciseTitlesService'
+ import { activitySets } from '@/services/activitySetsService'
+ import { activityMedia } from '@/services/activityMediaService'
++import { customSegments } from '@/services/customSegmentsService'
+ // Importing the utils
+ import {
+   activityTypeIsCycling,
+@@ -299,6 +321,39 @@ const activityActivityExerciseTitles = ref([])
+ const activityActivitySets = ref([])
+ const alertPrivacyMessage = ref(null)
+ const isHiddenMessage = ref(null)
++// CUSTOM: segment, trail, lap and chart data
++const activitySegments = ref([])
++const customActivityLaps = ref([])
++const trailDescription = ref(null)
++const hoveredSegmentId = ref(null)
++const hoveredLapId = ref(null)
++const activityMapRef = ref(null)
++const elevationStream = ref([])
++const speedStream = ref([])
++const hrStream = ref([])
++const chartHoveredIndex = ref(null)
++
++// CUSTOM: Chart position hover handler - shows dot on map + syncs sibling chart
++function onChartPositionHover(dataIndex) {
++  chartHoveredIndex.value = dataIndex
++  if (!activityMapRef.value) return
++  const waypoints = activityMapRef.value.getWaypoints()
++  if (!waypoints) return
++  const ratio = waypoints.length / Math.max(elevationStream.value.length, speedStream.value.length, 1)
++  const gpsIdx = Math.min(Math.round(dataIndex * ratio), waypoints.length - 1)
++  const wp = waypoints[gpsIdx]
++  if (wp && wp.lat && wp.lon) {
++    activityMapRef.value.showPositionMarker(wp.lat, wp.lon)
++  }
++}
++
++function onChartPositionLeave() {
++  chartHoveredIndex.value = null
++  if (activityMapRef.value) {
++    activityMapRef.value.hidePositionMarker()
++  }
++}
++
+ 
+ async function submitDeleteGearFromActivity() {
+   try {
+@@ -500,6 +555,32 @@ async function loadActivity() {
+     push.error(`${t('activityView.errorMessageActivityNotFound')} - ${error}`)
+   }
+ 
++
++    // CUSTOM: Fetch segments, trails, laps and extract elevation/speed streams
++    try {
++      const [segs, trails, laps] = await Promise.all([
++        customSegments.getActivitySegments(route.params.id),
++        customSegments.getActivityTrailDescription(route.params.id),
++        customSegments.getActivityLaps(route.params.id),
++      ])
++      activitySegments.value = segs || []
++      customActivityLaps.value = laps || []
++      trailDescription.value = trails?.description || null
++      console.log('[custom] Loaded segments:', activitySegments.value.length, 'laps:', customActivityLaps.value.length, 'trail:', trailDescription.value)
++    } catch (e) {
++      console.warn('[custom] Failed to fetch custom data:', e)
++    }
++    // CUSTOM: Extract elevation and speed streams for the subcharts
++    if (activityActivityStreams.value) {
++      const eleStream = activityActivityStreams.value.find((s) => s.stream_type === 4)
++      const velStream = activityActivityStreams.value.find((s) => s.stream_type === 5)
++      const hrStrm = activityActivityStreams.value.find((s) => s.stream_type === 1)
++      elevationStream.value = eleStream ? eleStream.stream_waypoints : []
++      speedStream.value = velStream ? velStream.stream_waypoints : []
++      hrStream.value = hrStrm ? hrStrm.stream_waypoints : []
++      console.log('[custom] Streams - Ele:', elevationStream.value.length, 'Speed:', speedStream.value.length, 'HR:', hrStream.value.length)
++    }
++
+   isLoading.value = false
+   if (authStore.user.id === activity.value.user_id) {
+     alertPrivacyMessage.value = t('activityView.alertPrivacyMessage')
+@@ -527,6 +608,11 @@ watch(
+       activityActivitySets.value = []
+       alertPrivacyMessage.value = null
+       isHiddenMessage.value = null
++      activitySegments.value = []
++      customActivityLaps.value = []
++      trailDescription.value = null
++      hoveredSegmentId.value = null
++      hoveredLapId.value = null
+       loadActivity()
+     }
+   }
