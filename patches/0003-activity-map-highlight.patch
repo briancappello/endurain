@@ -1,0 +1,165 @@
+diff --git a/frontend/app/src/components/Activities/ActivityMapComponent.vue b/frontend/app/src/components/Activities/ActivityMapComponent.vue
+index bc7a8f3..cf79c88 100644
+--- a/frontend/app/src/components/Activities/ActivityMapComponent.vue
++++ b/frontend/app/src/components/Activities/ActivityMapComponent.vue
+@@ -211,6 +211,160 @@ const submitDeleteMediaFromActivity = async (mediaId) => {
+   }
+ }
+ 
++  // BEGIN // CUSTOM PATCH - segment highlight + position marker
++  // --- Custom: Segment highlighting with directional arrows ---
++  let segmentHighlightLayer = null
++  let segmentArrowheads = []
++
++  // Haversine distance in meters between two [lat,lon] points
++  const _haversine = (a, b) => {
++    const R = 6371000
++    const toRad = (x) => (x * Math.PI) / 180
++    const dLat = toRad(b[0] - a[0])
++    const dLon = toRad(b[1] - a[1])
++    const sinLat = Math.sin(dLat / 2)
++    const sinLon = Math.sin(dLon / 2)
++    const h = sinLat * sinLat + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * sinLon * sinLon
++    return 2 * R * Math.asin(Math.sqrt(h))
++  }
++
++  // Compute bearing in degrees (0=north, 90=east) from a to b
++  const _bearing = (a, b) => {
++    const toRad = (x) => (x * Math.PI) / 180
++    const toDeg = (x) => (x * 180) / Math.PI
++    const dLon = toRad(b[1] - a[1])
++    const y = Math.sin(dLon) * Math.cos(toRad(b[0]))
++    const x = Math.cos(toRad(a[0])) * Math.sin(toRad(b[0])) - Math.sin(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.cos(dLon)
++    return (toDeg(Math.atan2(y, x)) + 360) % 360
++  }
++
++  const highlightSegment = (latlngs) => {
++    clearSegmentHighlight()
++    if (!leafletMap.value || !latlngs || latlngs.length < 2) return
++
++    // Main highlight polyline
++    segmentHighlightLayer = L.polyline(latlngs, {
++      color: '#f97316',
++      weight: 5,
++      opacity: 0.9,
++      lineJoin: 'round',
++      lineCap: 'round',
++    }).addTo(leafletMap.value)
++
++    // Build cumulative distance array
++    const cumDist = [0]
++    for (let i = 1; i < latlngs.length; i++) {
++      cumDist.push(cumDist[i - 1] + _haversine(latlngs[i - 1], latlngs[i]))
++    }
++    const totalDist = cumDist[cumDist.length - 1]
++    if (totalDist < 50) return // too short for arrows
++
++    // Distance-based smoothing window (200m or 20% of total, whichever is larger)
++    const smoothDist = Math.max(200, totalDist * 0.2)
++
++    // Find point index at a given cumulative distance
++    const idxAtDist = (d) => {
++      for (let i = 0; i < cumDist.length; i++) {
++        if (cumDist[i] >= d) return i
++      }
++      return cumDist.length - 1
++    }
++
++    // Place arrows at even distance intervals
++    const arrowCount = Math.min(5, Math.max(2, Math.floor(totalDist / 500)))
++    const spacing = totalDist / (arrowCount + 1)
++
++    for (let a = 1; a <= arrowCount; a++) {
++      const targetDist = a * spacing
++      const idx = idxAtDist(targetDist)
++      if (idx < 1 || idx >= latlngs.length - 1) continue
++
++      // Find points smoothDist/2 before and after for bearing
++      const behindDist = Math.max(0, targetDist - smoothDist / 2)
++      const aheadDist = Math.min(totalDist, targetDist + smoothDist / 2)
++      const behindIdx = idxAtDist(behindDist)
++      const aheadIdx = idxAtDist(aheadDist)
++
++      if (behindIdx === aheadIdx) continue
++
++      // Smoothed bearing from behind to ahead
++      const smoothBearing = _bearing(latlngs[behindIdx], latlngs[aheadIdx])
++
++      // Local bearing (immediate neighbors)
++      const localBehind = Math.max(0, idx - 3)
++      const localAhead = Math.min(latlngs.length - 1, idx + 3)
++      const localBearing = _bearing(latlngs[localBehind], latlngs[localAhead])
++
++      // Skip if local bearing disagrees with smoothed by > 90 degrees
++      // (means we're in a switchback pointing the wrong way)
++      let bearingDiff = Math.abs(smoothBearing - localBearing)
++      if (bearingDiff > 180) bearingDiff = 360 - bearingDiff
++      if (bearingDiff > 90) continue
++
++      // CSS rotation: bearing 0=north, but CSS rotate 0=up, so rotate = bearing
++      const arrow = L.marker(latlngs[idx], {
++        icon: L.divIcon({
++          className: 'segment-arrow',
++          html: `<div style="transform:rotate(${smoothBearing}deg);font-size:16px;line-height:1;"><svg width="16" height="16" viewBox="0 0 16 16"><polygon points="8,0 16,12 8,8 0,12" fill="white" stroke="#c2410c" stroke-width="1.5"/></svg></div>`,
++          iconSize: [16, 16],
++          iconAnchor: [8, 8],
++        }),
++        interactive: false,
++      }).addTo(leafletMap.value)
++      segmentArrowheads.push(arrow)
++    }
++  }
++
++  const clearSegmentHighlight = () => {
++    if (segmentHighlightLayer && leafletMap.value) {
++      leafletMap.value.removeLayer(segmentHighlightLayer)
++      segmentHighlightLayer = null
++    }
++    segmentArrowheads.forEach((a) => {
++      if (leafletMap.value) leafletMap.value.removeLayer(a)
++    })
++    segmentArrowheads = []
++  }
++
++  // --- Custom: Position marker synced with elevation/speed charts ---
++  let positionMarker = null
++
++  const showPositionMarker = (lat, lon) => {
++    if (!leafletMap.value) return
++    if (!positionMarker) {
++      positionMarker = L.circleMarker([lat, lon], {
++        radius: 6,
++        color: '#ffffff',
++        fillColor: '#3b82f6',
++        fillOpacity: 1,
++        weight: 2,
++      }).addTo(leafletMap.value)
++    } else {
++      positionMarker.setLatLng([lat, lon])
++    }
++  }
++
++  const hidePositionMarker = () => {
++    if (positionMarker && leafletMap.value) {
++      leafletMap.value.removeLayer(positionMarker)
++      positionMarker = null
++    }
++  }
++
++  // --- Custom: Get GPS waypoints for index-based position lookup ---
++  const getWaypoints = () => {
++    if (!activityStreamLatLng.value) return null
++    return activityStreamLatLng.value.stream_waypoints
++  }
++
++  defineExpose({
++    highlightSegment,
++    clearSegmentHighlight,
++    showPositionMarker,
++    hidePositionMarker,
++    getWaypoints,
++  })
++  // END // CUSTOM PATCH - segment highlight + position marker
+ const initMap = () => {
+   if (!activityMap.value) return
+ 
