@@ -1,0 +1,10 @@
+# Build work dir: pristine upstream copy + applied patches/overlay (reproducible, not committed)
+/build/
+
+# Local secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
