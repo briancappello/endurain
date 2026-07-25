@@ -1,0 +1,63 @@
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 2ce15b9..127ffea 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -1,3 +1,5 @@
++import pg18_compat  # noqa: F401 -- PG 18 compat patch
++import custom  # noqa: F401 -- custom fork layer
+ import os
+ 
+ from fastapi import FastAPI
+@@ -46,31 +48,40 @@ async def startup_event():
+     # Disable the logger configuration in Alembic to avoid conflicts with FastAPI
+     alembic_cfg.attributes["configure_logger"] = False
+     command.upgrade(alembic_cfg, "head")
++    custom.run_migrations()  # run custom fork migrations
+ 
+     # Migration check
+     await core_migrations.check_migrations()
+ 
+     # Create a scheduler to run background jobs
+     core_scheduler.start_scheduler()
++    import os as _os
++    _upstream_sync = _os.getenv("ENDURAIN_UPSTREAM_SYNC", "false").lower() == "true"
++    if not _upstream_sync:
++        core_logger.print_to_log_and_console("Upstream sync disabled (ENDURAIN_UPSTREAM_SYNC != true)")
+ 
+     # Retrieve last day activities from Garmin Connect and Strava
+     core_logger.print_to_log_and_console(
+         "Refreshing Strava tokens on startup on startup"
+     )
+-    strava_utils.refresh_strava_tokens(True)
++    if _upstream_sync:
++        strava_utils.refresh_strava_tokens(True)
+ 
+     # Retrieve last day activities from Garmin Connect and Strava
+     core_logger.print_to_log_and_console(
+         "Retrieving last day activities from Garmin Connect and Strava on startup"
+     )
+-    await garmin_activity_utils.retrieve_garminconnect_users_activities_for_days(1)
+-    await strava_activity_utils.retrieve_strava_users_activities_for_days(1, True)
++    if _upstream_sync:
++        await garmin_activity_utils.retrieve_garminconnect_users_activities_for_days(1)
++    if _upstream_sync:
++        await strava_activity_utils.retrieve_strava_users_activities_for_days(1, True)
+ 
+     # Retrieve last day health stats from Garmin Connect
+     core_logger.print_to_log_and_console(
+         "Retrieving last day health stats from Garmin Connect on startup"
+     )
+-    garmin_health_utils.retrieve_garminconnect_users_health_for_days(1)
++    if _upstream_sync:
++        garmin_health_utils.retrieve_garminconnect_users_health_for_days(1)
+ 
+     # Delete invalid password reset tokens
+     core_logger.print_to_log_and_console(
+@@ -187,6 +198,7 @@ def create_app() -> FastAPI:
+     )
+ 
+     # Router files
++    custom.register_api(fastapi_app)  # register custom API endpoints
+     fastapi_app.include_router(api_router)
+ 
+     # Add a route to serve the user images
