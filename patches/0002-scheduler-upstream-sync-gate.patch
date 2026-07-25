@@ -1,0 +1,80 @@
+diff --git a/backend/app/core/scheduler.py b/backend/app/core/scheduler.py
+index a098513..2bf2825 100644
+--- a/backend/app/core/scheduler.py
++++ b/backend/app/core/scheduler.py
+@@ -24,41 +24,47 @@ scheduler = AsyncIOScheduler()
+ 
+ 
+ def start_scheduler():
++    import os as _os
++    _upstream_sync = _os.getenv("ENDURAIN_UPSTREAM_SYNC", "false").lower() == "true"
+     if not scheduler.running:
+         # Start the scheduler
+         scheduler.start()
+ 
+-    add_scheduler_job(
+-        strava_utils.refresh_strava_tokens,
+-        "interval",
+-        60,
+-        [True],
+-        "refresh Strava user tokens every 60 minutes",
+-    )
++    if _upstream_sync:
++        add_scheduler_job(
++            strava_utils.refresh_strava_tokens,
++            "interval",
++            60,
++            [True],
++            "refresh Strava user tokens every 60 minutes",
++        )
+ 
+-    add_scheduler_job(
+-        strava_activity_utils.retrieve_strava_users_activities_for_days,
+-        "interval",
+-        60,
+-        [1, True],
+-        "retrieve last day Strava users activities",
+-    )
++    if _upstream_sync:
++        add_scheduler_job(
++            strava_activity_utils.retrieve_strava_users_activities_for_days,
++            "interval",
++            60,
++            [1, True],
++            "retrieve last day Strava users activities",
++        )
+ 
+-    add_scheduler_job(
+-        garmin_activity_utils.retrieve_garminconnect_users_activities_for_days,
+-        "interval",
+-        60,
+-        [1],
+-        "retrieve last day Garmin Connect users activities",
+-    )
++    if _upstream_sync:
++        add_scheduler_job(
++            garmin_activity_utils.retrieve_garminconnect_users_activities_for_days,
++            "interval",
++            60,
++            [1],
++            "retrieve last day Garmin Connect users activities",
++        )
+ 
+-    add_scheduler_job(
+-        garmin_health_utils.retrieve_garminconnect_users_health_for_days,
+-        "interval",
+-        240,
+-        [1],
+-        "retrieve last day Garmin Connect users health data",
+-    )
++    if _upstream_sync:
++        add_scheduler_job(
++            garmin_health_utils.retrieve_garminconnect_users_health_for_days,
++            "interval",
++            240,
++            [1],
++            "retrieve last day Garmin Connect users health data",
++        )
+ 
+     add_scheduler_job(
+         password_reset_tokens_utils.delete_invalid_tokens_from_db,
