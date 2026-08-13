@@ -72,6 +72,56 @@ def _ensure_test_database():
             cur.execute(f'CREATE DATABASE "{TEST_DB}" TEMPLATE template0')
 
 
+def _purge_stub_pollution():
+    """Undo import-time sys.path/sys.modules pollution from standalone tests.
+
+    The legacy standalone test files (test_trail_ranges, test_trigger,
+    test_api_privacy_gates) run at COLLECTION time -- before any fixture -- and,
+    to test modules in isolation, they:
+      * ``sys.path.insert(0, overlay/backend/app)`` (a different app root), and
+      * stub top-level app packages (``core``, ``auth``, ``custom``,
+        ``activities`` ...) into ``sys.modules`` as bare ``types.ModuleType``
+        objects with NO ``__path__``.
+
+    A bare stub for e.g. ``auth`` means ``auth`` is no longer a package, so
+    alembic's env.py ``import auth.identity_providers.models`` dies with
+    "'auth' is not a package". This purge makes ``build/app`` the winning root
+    and drops every stub that shadows a real package under it, so the migration
+    imports resolve against the real code. Isolation of those tests is
+    unaffected: they already imported and asserted at collection time.
+    """
+    app_str = str(APP)
+
+    # 1. build/app must win over any other app root (e.g. overlay/backend/app).
+    sys.path[:] = [p for p in sys.path if p and p != app_str]
+    sys.path.insert(0, app_str)
+
+    # 2. Drop any sys.modules entry whose top-level name is a real package/module
+    #    under build/app but is currently NOT backed by a file there (i.e. a stub
+    #    or an overlay import). alembic will re-import the real ones.
+    #
+    #    Exception: keep stubs a still-pending standalone test consumes lazily at
+    #    RUN time. test_trigger.py binds ``custom.trigger`` at collection but its
+    #    ``schedule_pipeline`` does ``from custom.pipeline import process_pending``
+    #    inside the timer, re-reading ``sys.modules`` when the test runs (after
+    #    this fixture). Purging ``custom.pipeline`` would make that lazy import
+    #    resolve to the real pipeline and the stub's run-counter never fires. No
+    #    pytest-style test imports ``custom.pipeline``/``custom.trigger``, so
+    #    preserving those stub bindings is safe. Restore them after the migration.
+    preserve = {}
+    for name in list(sys.modules):
+        top = name.split(".")[0]
+        if not ((APP / top).is_dir() or (APP / f"{top}.py").exists()):
+            continue  # not an app package -- leave stdlib/3rd-party alone
+        mod = sys.modules.get(name)
+        f = getattr(mod, "__file__", None)
+        if f is None or app_str not in str(Path(f).resolve()):
+            if name in ("custom.pipeline", "custom.trigger"):
+                preserve[name] = mod
+            del sys.modules[name]
+    return preserve
+
+
 @pytest.fixture(scope="session")
 def _migrated_db():
     """Session-scoped: create the test DB and run both migration chains once.
@@ -81,6 +131,7 @@ def _migrated_db():
     """
     _load_env()
     sys.path.insert(0, str(APP))
+    preserved_stubs = _purge_stub_pollution()
     _ensure_test_database()
 
     # cwd must be build/app so alembic.ini + custom/alembic.ini resolve.
@@ -99,6 +150,8 @@ def _migrated_db():
         custom.run_migrations()  # custom fork migrations: hide_* -> nullable
     finally:
         os.chdir(prev_cwd)
+        # Give the standalone tests back the stub bindings they consume lazily.
+        sys.modules.update(preserved_stubs)
 
     from sqlalchemy.orm import configure_mappers
 
