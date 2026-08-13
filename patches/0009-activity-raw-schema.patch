@@ -1,0 +1,39 @@
+diff --git a/backend/app/activities/activity/crud.py b/backend/app/activities/activity/crud.py
+index d88591d..56ab76b 100644
+--- a/backend/app/activities/activity/crud.py
++++ b/backend/app/activities/activity/crud.py
+@@ -1243,7 +1243,7 @@ async def create_activity(
+ 
+ 
+ def edit_activity(
+-    user_id: int, activity_attributes: activities_schema.ActivityEdit, db: Session
++    user_id: int, activity_attributes: activities_schema.ActivityRaw, db: Session
+ ):
+     try:
+         # Get the activity from the database
+diff --git a/backend/app/activities/activity/router.py b/backend/app/activities/activity/router.py
+index 352bb27..7b0ca9f 100644
+--- a/backend/app/activities/activity/router.py
++++ b/backend/app/activities/activity/router.py
+@@ -729,7 +729,7 @@ async def edit_activity(
+         int,
+         Depends(auth_security.get_sub_from_access_token),
+     ],
+-    activity_attributes: activities_schema.ActivityEdit,
++    activity_attributes: activities_schema.ActivityRaw,
+     _check_scopes: Annotated[
+         Callable, Security(auth_security.check_scopes, scopes=["activities:write"])
+     ],
+diff --git a/backend/app/activities/activity/schema.py b/backend/app/activities/activity/schema.py
+index 4cc4f23..627e5a1 100644
+--- a/backend/app/activities/activity/schema.py
++++ b/backend/app/activities/activity/schema.py
+@@ -80,7 +80,7 @@ class ActivityDistances(BaseModel):
+     inline_skating: float
+ 
+ 
+-class ActivityEdit(BaseModel):
++class ActivityRaw(BaseModel):
+     id: int
+     description: str | None = None
+     private_notes: str | None = None
