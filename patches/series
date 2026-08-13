@@ -5,3 +5,4 @@
 0005-pipeline-import-hooks.patch
 0006-profile-staleness-refetch.patch
 0007-hide-flags-hybrid.patch
+0008-drop-hide-stamping.patch

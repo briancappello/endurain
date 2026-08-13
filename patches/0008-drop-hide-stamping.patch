@@ -1,0 +1,98 @@
+diff --git a/backend/app/fit/utils.py b/backend/app/fit/utils.py
+index 24c5046..6fc5285 100644
+--- a/backend/app/fit/utils.py
++++ b/backend/app/fit/utils.py
+@@ -172,21 +172,6 @@ def create_activity_objects(
+                     garminconnect_gear_id=(
+                         garminconnect_gear[0]["uuid"] if garminconnect_gear else None
+                     ),
+-                    hide_start_time=user_privacy_settings.hide_activity_start_time
+-                    or False,
+-                    hide_location=user_privacy_settings.hide_activity_location or False,
+-                    hide_map=user_privacy_settings.hide_activity_map or False,
+-                    hide_hr=user_privacy_settings.hide_activity_hr or False,
+-                    hide_power=user_privacy_settings.hide_activity_power or False,
+-                    hide_cadence=user_privacy_settings.hide_activity_cadence or False,
+-                    hide_elevation=user_privacy_settings.hide_activity_elevation
+-                    or False,
+-                    hide_speed=user_privacy_settings.hide_activity_speed or False,
+-                    hide_pace=user_privacy_settings.hide_activity_pace or False,
+-                    hide_laps=user_privacy_settings.hide_activity_laps or False,
+-                    hide_workout_sets_steps=user_privacy_settings.hide_activity_workout_sets_steps
+-                    or False,
+-                    hide_gear=user_privacy_settings.hide_activity_gear or False,
+                     tracker_manufacturer=session_record["file_id"].get(
+                         "manufacturer", None
+                     ),
+diff --git a/backend/app/gpx/utils.py b/backend/app/gpx/utils.py
+index c4529fc..e981a8f 100644
+--- a/backend/app/gpx/utils.py
++++ b/backend/app/gpx/utils.py
+@@ -363,19 +363,6 @@ def parse_gpx_file(
+             strava_activity_id=None,
+             garminconnect_activity_id=None,
+             garminconnect_gear_id=None,
+-            hide_start_time=user_privacy_settings.hide_activity_start_time or False,
+-            hide_location=user_privacy_settings.hide_activity_location or False,
+-            hide_map=user_privacy_settings.hide_activity_map or False,
+-            hide_hr=user_privacy_settings.hide_activity_hr or False,
+-            hide_power=user_privacy_settings.hide_activity_power or False,
+-            hide_cadence=user_privacy_settings.hide_activity_cadence or False,
+-            hide_elevation=user_privacy_settings.hide_activity_elevation or False,
+-            hide_speed=user_privacy_settings.hide_activity_speed or False,
+-            hide_pace=user_privacy_settings.hide_activity_pace or False,
+-            hide_laps=user_privacy_settings.hide_activity_laps or False,
+-            hide_workout_sets_steps=user_privacy_settings.hide_activity_workout_sets_steps
+-            or False,
+-            hide_gear=user_privacy_settings.hide_activity_gear or False,
+         )
+ 
+         # Generate activity laps
+diff --git a/backend/app/strava/activity_utils.py b/backend/app/strava/activity_utils.py
+index 492007c..510dccf 100644
+--- a/backend/app/strava/activity_utils.py
++++ b/backend/app/strava/activity_utils.py
+@@ -339,19 +339,6 @@ def parse_activity(
+         visibility=users_privacy_settings_utils.visibility_to_int(
+             user_privacy_settings.default_activity_visibility
+         ),
+-        hide_start_time=user_privacy_settings.hide_activity_start_time or False,
+-        hide_location=user_privacy_settings.hide_activity_location or False,
+-        hide_map=user_privacy_settings.hide_activity_map or False,
+-        hide_hr=user_privacy_settings.hide_activity_hr or False,
+-        hide_power=user_privacy_settings.hide_activity_power or False,
+-        hide_cadence=user_privacy_settings.hide_activity_cadence or False,
+-        hide_elevation=user_privacy_settings.hide_activity_elevation or False,
+-        hide_speed=user_privacy_settings.hide_activity_speed or False,
+-        hide_pace=user_privacy_settings.hide_activity_pace or False,
+-        hide_laps=user_privacy_settings.hide_activity_laps or False,
+-        hide_workout_sets_steps=user_privacy_settings.hide_activity_workout_sets_steps
+-        or False,
+-        hide_gear=user_privacy_settings.hide_activity_gear or False,
+     )
+ 
+     # Fetch and process activity laps
+diff --git a/backend/app/tcx/utils.py b/backend/app/tcx/utils.py
+index 55509d4..c42bfca 100644
+--- a/backend/app/tcx/utils.py
++++ b/backend/app/tcx/utils.py
+@@ -269,19 +269,6 @@ def parse_tcx_file(
+             user_privacy_settings.default_activity_visibility
+         ),
+         gear_id=gear_id,
+-        hide_start_time=user_privacy_settings.hide_activity_start_time or False,
+-        hide_location=user_privacy_settings.hide_activity_location or False,
+-        hide_map=user_privacy_settings.hide_activity_map or False,
+-        hide_hr=user_privacy_settings.hide_activity_hr or False,
+-        hide_power=user_privacy_settings.hide_activity_power or False,
+-        hide_cadence=user_privacy_settings.hide_activity_cadence or False,
+-        hide_elevation=user_privacy_settings.hide_activity_elevation or False,
+-        hide_speed=user_privacy_settings.hide_activity_speed or False,
+-        hide_pace=user_privacy_settings.hide_activity_pace or False,
+-        hide_laps=user_privacy_settings.hide_activity_laps or False,
+-        hide_workout_sets_steps=user_privacy_settings.hide_activity_workout_sets_steps
+-        or False,
+-        hide_gear=user_privacy_settings.hide_activity_gear or False,
+     )
+ 
+     return {
