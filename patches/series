@@ -8,3 +8,4 @@
 0008-drop-hide-stamping.patch
 0009-activity-raw-schema.patch
 0010-activity-raw-endpoint.patch
+0011-edit-activity-tristate.patch

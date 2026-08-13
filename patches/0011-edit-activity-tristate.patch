@@ -1,0 +1,207 @@
+diff --git a/frontend/app/src/components/Activities/Modals/EditActivityModalComponent.vue b/frontend/app/src/components/Activities/Modals/EditActivityModalComponent.vue
+index ad565cb..13863ca 100644
+--- a/frontend/app/src/components/Activities/Modals/EditActivityModalComponent.vue
++++ b/frontend/app/src/components/Activities/Modals/EditActivityModalComponent.vue
+@@ -274,8 +274,8 @@
+                 class="form-select"
+                 name="activityHideStartTimeEdit"
+                 v-model="editActivityHideStartTime"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -289,8 +289,8 @@
+                 class="form-select"
+                 name="activityHideLocationEdit"
+                 v-model="editActivityHideLocation"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -304,8 +304,8 @@
+                 class="form-select"
+                 name="activityHideMapEdit"
+                 v-model="editActivityHideMap"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -317,8 +317,8 @@
+                 class="form-select"
+                 name="activityHideHrEdit"
+                 v-model="editActivityHideHr"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -332,8 +332,8 @@
+                 class="form-select"
+                 name="activityHidePowerEdit"
+                 v-model="editActivityHidePower"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -347,8 +347,8 @@
+                 class="form-select"
+                 name="activityHideCadenceEdit"
+                 v-model="editActivityHideCadence"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -363,8 +363,8 @@
+                   class="form-select"
+                   name="activityHideElevationEdit"
+                   v-model="editActivityHideElevation"
+-                  required
+                 >
++                  <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                   <option :value="true">{{ $t('generalItems.yes') }}</option>
+                   <option :value="false">{{ $t('generalItems.no') }}</option>
+                 </select>
+@@ -380,8 +380,8 @@
+                   class="form-select"
+                   name="activityHideSpeedEdit"
+                   v-model="editActivityHideSpeed"
+-                  required
+                 >
++                  <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                   <option :value="true">{{ $t('generalItems.yes') }}</option>
+                   <option :value="false">{{ $t('generalItems.no') }}</option>
+                 </select>
+@@ -403,8 +403,8 @@
+                   class="form-select"
+                   name="activityHidePaceEdit"
+                   v-model="editActivityHidePace"
+-                  required
+                 >
++                  <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                   <option :value="true">{{ $t('generalItems.yes') }}</option>
+                   <option :value="false">{{ $t('generalItems.no') }}</option>
+                 </select>
+@@ -419,8 +419,8 @@
+                 class="form-select"
+                 name="activityHideLapsEdit"
+                 v-model="editActivityHideLaps"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -437,8 +437,8 @@
+                 class="form-select"
+                 name="activityHideWorkoutSetsStepsEdit"
+                 v-model="editActivityHideWorkoutSetsSteps"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -452,8 +452,8 @@
+                 class="form-select"
+                 name="activityHideGearEdit"
+                 v-model="editActivityHideGear"
+-                required
+               >
++                <option :value="null">{{ $t('editActivityModalComponent.hideUseGlobalDefault') }}</option>
+                 <option :value="true">{{ $t('generalItems.yes') }}</option>
+                 <option :value="false">{{ $t('generalItems.no') }}</option>
+               </select>
+@@ -512,18 +512,35 @@ const editActivityVisibility = ref(props.activity.visibility)
+ const editActivityIsHidden = ref(props.activity.is_hidden)
+ const hiddenFields = ref(false)
+ // Hide fields
+-const editActivityHideStartTime = ref(props.activity.hide_start_time)
+-const editActivityHideLocation = ref(props.activity.hide_location)
+-const editActivityHideMap = ref(props.activity.hide_map)
+-const editActivityHideHr = ref(props.activity.hide_hr)
+-const editActivityHidePower = ref(props.activity.hide_power)
+-const editActivityHideCadence = ref(props.activity.hide_cadence)
+-const editActivityHideElevation = ref(props.activity.hide_elevation)
+-const editActivityHideSpeed = ref(props.activity.hide_speed)
+-const editActivityHidePace = ref(props.activity.hide_pace)
+-const editActivityHideLaps = ref(props.activity.hide_laps)
+-const editActivityHideWorkoutSetsSteps = ref(props.activity.hide_workout_sets_steps)
+-const editActivityHideGear = ref(props.activity.hide_gear)
++const editActivityHideStartTime = ref(null)
++const editActivityHideLocation = ref(null)
++const editActivityHideMap = ref(null)
++const editActivityHideHr = ref(null)
++const editActivityHidePower = ref(null)
++const editActivityHideCadence = ref(null)
++const editActivityHideElevation = ref(null)
++const editActivityHideSpeed = ref(null)
++const editActivityHidePace = ref(null)
++const editActivityHideLaps = ref(null)
++const editActivityHideWorkoutSetsSteps = ref(null)
++const editActivityHideGear = ref(null)
++
++async function loadRawHideSettings() {
++  const raw = await activities.getActivityRaw(props.activity.id)
++  if (!raw) return
++  editActivityHideStartTime.value = raw.hide_start_time
++  editActivityHideLocation.value = raw.hide_location
++  editActivityHideMap.value = raw.hide_map
++  editActivityHideHr.value = raw.hide_hr
++  editActivityHidePower.value = raw.hide_power
++  editActivityHideCadence.value = raw.hide_cadence
++  editActivityHideElevation.value = raw.hide_elevation
++  editActivityHideSpeed.value = raw.hide_speed
++  editActivityHidePace.value = raw.hide_pace
++  editActivityHideLaps.value = raw.hide_laps
++  editActivityHideWorkoutSetsSteps.value = raw.hide_workout_sets_steps
++  editActivityHideGear.value = raw.hide_gear
++}
+ 
+ async function submitEditActivityForm() {
+   try {
+@@ -564,6 +581,8 @@ async function submitEditActivityForm() {
+ }
+ 
+ onMounted(async () => {
++  // Seed the hide_* selects from the RAW per-activity settings (null = inherit global)
++  await loadRawHideSettings()
+   // Attach Bootstrap collapse event listeners to sync icon state
+   const collapseElement = document.getElementById(`collapseEditActivityHideFields`)
+   if (collapseElement) {
+diff --git a/frontend/app/src/i18n/us/components/activities/modals/editActivityModalComponent.json b/frontend/app/src/i18n/us/components/activities/modals/editActivityModalComponent.json
+index 0ee7fd8..f289bd8 100644
+--- a/frontend/app/src/i18n/us/components/activities/modals/editActivityModalComponent.json
++++ b/frontend/app/src/i18n/us/components/activities/modals/editActivityModalComponent.json
+@@ -71,6 +71,7 @@
+   "modalEditActivityHideLapsLabel": "Hide laps",
+   "modalEditActivityHideWorkoutSetsStepsLabel": "Hide workout sets/steps",
+   "modalEditActivityHideGearLabel": "Hide gear",
++  "hideUseGlobalDefault": "Use global default",
+   "successActivityEdit": "Activity edited successfully",
+   "errorActivityEdit": "Error editing activity"
+ }
+diff --git a/frontend/app/src/services/activitiesService.js b/frontend/app/src/services/activitiesService.js
+index 9c43664..cac9298 100644
+--- a/frontend/app/src/services/activitiesService.js
++++ b/frontend/app/src/services/activitiesService.js
+@@ -127,6 +127,9 @@ export const activities = {
+   editActivity(data) {
+     return fetchPutRequest('activities/edit', data)
+   },
++  getActivityRaw(activityId) {
++    return fetchGetRequest(`activities/${activityId}/raw`)
++  },
+   editUserActivitiesVisibility(visibility) {
+     return fetchPutRequest(`activities/visibility/${visibility}`)
+   },
