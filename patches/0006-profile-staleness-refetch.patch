@@ -1,0 +1,76 @@
+diff --git a/frontend/app/src/components/Settings/SettingsUserProfileZone.vue b/frontend/app/src/components/Settings/SettingsUserProfileZone.vue
+index 12506a6..e6124a0 100644
+--- a/frontend/app/src/components/Settings/SettingsUserProfileZone.vue
++++ b/frontend/app/src/components/Settings/SettingsUserProfileZone.vue
+@@ -1027,9 +1027,39 @@ async function getGearsInfo() {
+   }
+ }
+ 
++// Re-seed the privacy refs from a value object (the fresh user or the store).
++function seedPrivacyRefs(u) {
++  activityVisibility.value = u.default_activity_visibility
++  activityStartTime.value = u.hide_activity_start_time
++  activityLocation.value = u.hide_activity_location
++  activityMap.value = u.hide_activity_map
++  activityHr.value = u.hide_activity_hr
++  activityPower.value = u.hide_activity_power
++  activityCadence.value = u.hide_activity_cadence
++  activityElevation.value = u.hide_activity_elevation
++  activitySpeed.value = u.hide_activity_speed
++  activityPace.value = u.hide_activity_pace
++  activityLaps.value = u.hide_activity_laps
++  activitySetsSteps.value = u.hide_activity_workout_sets_steps
++  activityGear.value = u.hide_activity_gear
++}
++
+ onMounted(async () => {
+   isLoading.value = true
+   try {
++    // The refs seed from authStore.user, which is restored from localStorage and
++    // can be stale (e.g. a privacy setting changed in a prior session). Re-fetch
++    // the profile so the selects reflect server truth, then re-seed. isMounted is
++    // still false here, so re-seeding does NOT trigger the save watcher.
++    try {
++      const freshUser = await profile.getProfileInfo()
++      if (freshUser) {
++        authStore.setUser(freshUser, authStore.session_id, locale)
++        seedPrivacyRefs(freshUser)
++      }
++    } catch (profileError) {
++      console.error('Failed to refresh profile settings on mount:', profileError)
++    }
+     await getGearsInfo()
+   } finally {
+     isLoading.value = false
+diff --git a/frontend/app/src/main.js b/frontend/app/src/main.js
+index 9b2fce7..fd829f4 100644
+--- a/frontend/app/src/main.js
++++ b/frontend/app/src/main.js
+@@ -18,6 +18,7 @@ import 'leaflet/dist/leaflet.css'
+ import App from './App.vue'
+ import router from './router'
+ import { setupI18n } from './i18n'
++import { profile } from './services/profileService'
+ 
+ /* import the fontawesome core */
+ import { library } from '@fortawesome/fontawesome-svg-core'
+@@ -80,6 +81,19 @@ async function initApp() {
+       await authStore.refreshAccessToken()
+       // Set up WebSocket after token is available
+       authStore.setUserWebsocket()
++      // Re-fetch the user profile so the cached authStore.user (restored from
++      // localStorage) reflects server truth after a page reload. /refresh only
++      // returns tokens, so without this the store stays stale until the next
++      // explicit save -- which is why changed privacy settings appeared to
++      // revert on refresh. Best-effort: a failure here must not block startup.
++      try {
++        const freshUser = await profile.getProfileInfo()
++        if (freshUser) {
++          authStore.setUser(freshUser, authStore.session_id, i18n)
++        }
++      } catch (profileError) {
++        console.error('Failed to refresh user profile on app init:', profileError)
++      }
+     } catch (error) {
+       // If refresh fails, clear user and redirect to login
+       console.error('Failed to restore session on app init:', error)
