@@ -136,7 +136,7 @@ git commit -m "feat: migration to make activity hide_* columns nullable for inhe
 **Files:**
 - Modify (patch): `build/source/backend/app/activities/activity/models.py`
 - Test: `tests/test_hide_flags_resolver.py` (new, in repo `tests/`)
-- Patch output: `patches/0006-hide-flags-hybrid.patch` + append to `patches/series`
+- Patch output: `patches/0007-hide-flags-hybrid.patch` + append to `patches/series`
 
 **Interfaces:**
 - Consumes: Task 1's nullable columns.
@@ -446,10 +446,10 @@ After the last relationship in the class (after `activity_media = relationship(.
 ```bash
 SCRATCH=/tmp/opencode/hideflags-model
 cd "$SCRATCH"
-git diff HEAD~1 -- backend/app/activities/activity/models.py > /home/brian/dev/endurain-fork/patches/0006-hide-flags-hybrid.patch
-head -1 /home/brian/dev/endurain-fork/patches/0006-hide-flags-hybrid.patch   # sanity: a/backend/... header
+git diff HEAD~1 -- backend/app/activities/activity/models.py > /home/brian/dev/endurain-fork/patches/0007-hide-flags-hybrid.patch
+head -1 /home/brian/dev/endurain-fork/patches/0007-hide-flags-hybrid.patch   # sanity: a/backend/... header
 ```
-Then append `0006-hide-flags-hybrid.patch` as a new final line in `patches/series` (Edit the file).
+Then append `0007-hide-flags-hybrid.patch` as a new final line in `patches/series` (Edit the file).
 
 - [ ] **Step 9: Sync into build/app and run the resolver test**
 
@@ -472,12 +472,12 @@ cd "$V"; git init -q && git add -A && git -c user.email=b@x -c user.name=b commi
 ROOT=/home/brian/dev/endurain-fork
 while IFS= read -r p; do [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac; git apply --check --whitespace=nowarn "$ROOT/patches/$p" && echo "OK $p" || echo "FAIL $p"; git apply --whitespace=nowarn "$ROOT/patches/$p"; done < "$ROOT/patches/series"
 ```
-Expected: `OK` for all patches including `0006-hide-flags-hybrid.patch`.
+Expected: `OK` for all patches including `0007-hide-flags-hybrid.patch`.
 
 - [ ] **Step 11: Commit**
 
 ```bash
-git add patches/0006-hide-flags-hybrid.patch patches/series tests/test_hide_flags_resolver.py
+git add patches/0007-hide-flags-hybrid.patch patches/series tests/test_hide_flags_resolver.py
 git commit -m "feat: Activity hide_* hybrid properties resolving NULL to global settings"
 ```
 
@@ -487,7 +487,7 @@ git commit -m "feat: Activity hide_* hybrid properties resolving NULL to global 
 
 **Files:**
 - Modify (patch): `build/source/backend/app/fit/utils.py`, `build/source/backend/app/gpx/utils.py`, `build/source/backend/app/tcx/utils.py`, `build/source/backend/app/strava/activity_utils.py`
-- Patch output: `patches/0007-drop-hide-stamping.patch` + append to `patches/series`
+- Patch output: `patches/0008-drop-hide-stamping.patch` + append to `patches/series`
 
 **Interfaces:**
 - Consumes: Task 1 (columns nullable) + Task 2 (hybrids exist).
@@ -554,9 +554,9 @@ Expected: all 4 files listed.
 ```bash
 SCRATCH=/tmp/opencode/hideflags-stamping
 cd "$SCRATCH"
-git diff HEAD~1 -- backend/app/fit/utils.py backend/app/gpx/utils.py backend/app/tcx/utils.py backend/app/strava/activity_utils.py > /home/brian/dev/endurain-fork/patches/0007-drop-hide-stamping.patch
+git diff HEAD~1 -- backend/app/fit/utils.py backend/app/gpx/utils.py backend/app/tcx/utils.py backend/app/strava/activity_utils.py > /home/brian/dev/endurain-fork/patches/0008-drop-hide-stamping.patch
 ```
-Append `0007-drop-hide-stamping.patch` as the final line of `patches/series`.
+Append `0008-drop-hide-stamping.patch` as the final line of `patches/series`.
 
 - [ ] **Step 7: Verify full series applies clean**
 
@@ -582,7 +582,7 @@ find /home/brian/dev/endurain-fork/build/app -name '__pycache__' -type d -prune 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add patches/0007-drop-hide-stamping.patch patches/series
+git add patches/0008-drop-hide-stamping.patch patches/series
 git commit -m "feat: stop stamping global hide_* onto new activities (insert NULL to inherit)"
 ```
 
@@ -594,7 +594,7 @@ git commit -m "feat: stop stamping global hide_* onto new activities (insert NUL
 
 **Files:**
 - Modify (patch): `build/source/backend/app/activities/activity/schema.py:83`, `build/source/backend/app/activities/activity/router.py:732`, `build/source/backend/app/activities/activity/crud.py:1246`
-- Patch output: `patches/0008-activity-raw-schema.patch` + append to `patches/series`
+- Patch output: `patches/0009-activity-raw-schema.patch` + append to `patches/series`
 
 **Interfaces:**
 - Consumes: nothing new (pure rename; the existing `ActivityEdit` already declares all 12 `hide_*: bool | None`).
@@ -666,9 +666,9 @@ Expected: `OK` for all three.
 
 ```bash
 cd /tmp/opencode/hideflags-schema
-git diff HEAD~1 -- backend/app/activities/activity/schema.py backend/app/activities/activity/router.py backend/app/activities/activity/crud.py > /home/brian/dev/endurain-fork/patches/0008-activity-raw-schema.patch
+git diff HEAD~1 -- backend/app/activities/activity/schema.py backend/app/activities/activity/router.py backend/app/activities/activity/crud.py > /home/brian/dev/endurain-fork/patches/0009-activity-raw-schema.patch
 ```
-Append `0008-activity-raw-schema.patch` to `patches/series`.
+Append `0009-activity-raw-schema.patch` to `patches/series`.
 
 - [ ] **Step 8: Verify full series applies clean + sync to build**
 
@@ -685,7 +685,7 @@ Expected: `OK` for all patches.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add patches/0008-activity-raw-schema.patch patches/series
+git add patches/0009-activity-raw-schema.patch patches/series
 git commit -m "refactor: rename ActivityEdit schema to ActivityRaw (tri-state write body)"
 ```
 
@@ -696,7 +696,7 @@ git commit -m "refactor: rename ActivityEdit schema to ActivityRaw (tri-state wr
 **Files:**
 - Modify (patch): `build/source/backend/app/activities/activity/crud.py` (add builder), `build/source/backend/app/activities/activity/router.py` (add endpoint)
 - Test: `tests/test_activity_raw_builder.py` (new)
-- Patch output: `patches/0009-activity-raw-endpoint.patch` + append to `patches/series`
+- Patch output: `patches/0010-activity-raw-endpoint.patch` + append to `patches/series`
 
 **Interfaces:**
 - Consumes: Task 2 (`_hide_*` raw columns), Task 4 (`ActivityRaw` schema).
@@ -818,7 +818,7 @@ if __name__ == "__main__":
 Run: `build/app/.venv/bin/python tests/test_activity_raw_builder.py`
 Expected: FAIL — `AttributeError: module 'activities.activity.crud' has no attribute 'get_activity_raw_by_id'`. (If import-time stubbing errors surface, add the missing module names to the stub loop in Step 1 — this is expected iteration for the standalone import.)
 
-- [ ] **Step 3: Set up scratch tree (series incl. 0006-0008)**
+- [ ] **Step 3: Set up scratch tree (series incl. 0007-0009)**
 
 ```bash
 SCRATCH=/tmp/opencode/hideflags-rawendpoint
@@ -914,9 +914,9 @@ async def read_activity_raw(
 ```bash
 for f in activities/activity/crud.py activities/activity/router.py; do build/app/.venv/bin/python -m py_compile /tmp/opencode/hideflags-rawendpoint/backend/app/$f && echo "OK $f"; done
 cd /tmp/opencode/hideflags-rawendpoint
-git diff HEAD~1 -- backend/app/activities/activity/crud.py backend/app/activities/activity/router.py > /home/brian/dev/endurain-fork/patches/0009-activity-raw-endpoint.patch
+git diff HEAD~1 -- backend/app/activities/activity/crud.py backend/app/activities/activity/router.py > /home/brian/dev/endurain-fork/patches/0010-activity-raw-endpoint.patch
 ```
-Append `0009-activity-raw-endpoint.patch` to `patches/series`.
+Append `0010-activity-raw-endpoint.patch` to `patches/series`.
 
 - [ ] **Step 7: Verify series applies clean + sync to build**
 
@@ -939,7 +939,7 @@ Expected: `2 passed`.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add patches/0009-activity-raw-endpoint.patch patches/series tests/test_activity_raw_builder.py
+git add patches/0010-activity-raw-endpoint.patch patches/series tests/test_activity_raw_builder.py
 git commit -m "feat: GET /activities/{id}/raw returning raw hide_* settings for editing"
 ```
 
@@ -949,7 +949,7 @@ git commit -m "feat: GET /activities/{id}/raw returning raw hide_* settings for 
 
 **Files:**
 - Modify (patch): `build/source/frontend/app/src/components/Activities/Modals/EditActivityModalComponent.vue`, `build/source/frontend/app/src/services/activitiesService.js`
-- Patch output: `patches/0010-edit-activity-tristate.patch` + append to `patches/series`
+- Patch output: `patches/0011-edit-activity-tristate.patch` + append to `patches/series`
 
 **Interfaces:**
 - Consumes: Task 5's `GET /activities/{id}/raw`.
@@ -959,7 +959,7 @@ git commit -m "feat: GET /activities/{id}/raw returning raw hide_* settings for 
 1. **Service**: add `getActivityRaw(activityId)` calling `GET activities/{id}/raw`.
 2. **Modal**: (a) add a `null` option to each of the 12 selects; (b) when the modal opens, fetch `/raw` and seed the 12 `editActivityHide*` refs from it (instead of `props.activity.hide_*`, which is resolved).
 
-- [ ] **Step 1: Set up scratch tree (series incl. 0006-0009)**
+- [ ] **Step 1: Set up scratch tree (series incl. 0007-0010)**
 
 ```bash
 SCRATCH=/tmp/opencode/hideflags-frontend
@@ -1083,9 +1083,9 @@ git diff HEAD~1 -- \
   frontend/app/src/components/Activities/Modals/EditActivityModalComponent.vue \
   frontend/app/src/services/activitiesService.js \
   frontend/app/src/i18n/us/components/editActivityModalComponent.json \
-  > /home/brian/dev/endurain-fork/patches/0010-edit-activity-tristate.patch
+  > /home/brian/dev/endurain-fork/patches/0011-edit-activity-tristate.patch
 ```
-Append `0010-edit-activity-tristate.patch` to `patches/series`.
+Append `0011-edit-activity-tristate.patch` to `patches/series`.
 
 - [ ] **Step 9: Verify full series applies clean**
 
@@ -1101,7 +1101,7 @@ Expected: `OK` for all patches through `0010`.
 - [ ] **Step 10: Commit**
 
 ```bash
-git add patches/0010-edit-activity-tristate.patch patches/series
+git add patches/0011-edit-activity-tristate.patch patches/series
 git commit -m "feat: tri-state hide_* controls in edit-activity modal (Use global default)"
 ```
 
