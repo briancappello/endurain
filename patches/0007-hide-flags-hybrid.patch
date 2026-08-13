@@ -1,0 +1,241 @@
+diff --git a/backend/app/activities/activity/models.py b/backend/app/activities/activity/models.py
+index ed18a13..71ac2b9 100644
+--- a/backend/app/activities/activity/models.py
++++ b/backend/app/activities/activity/models.py
+@@ -10,6 +10,7 @@ from sqlalchemy import (
+     JSON,
+ )
+ from sqlalchemy.orm import relationship
++from sqlalchemy.ext.hybrid import hybrid_property
+ from core.database import Base
+ 
+ 
+@@ -144,68 +145,18 @@ class Activity(Base):
+         default=False,
+         comment="Indicates if the activity is hidden (e.g., duplicate activity waiting to be reviewed by the user)",
+     )
+-    hide_start_time = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity start time",
+-    )
+-    hide_location = Column(
+-        Boolean,
+-        nullable=False,
+-        default=False,
+-        comment="Hide activity location",
+-    )
+-    hide_map = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity map",
+-    )
+-    hide_hr = Column(
+-        Boolean,
+-        nullable=False,
+-        default=False,
+-        comment="Hide activity heart rate",
+-    )
+-    hide_power = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity power",
+-    )
+-    hide_cadence = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity cadence",
+-    )
+-    hide_elevation = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity elevation",
+-    )
+-    hide_speed = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity speed",
+-    )
+-    hide_pace = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity pace",
+-    )
+-    hide_laps = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity laps",
+-    )
+-    hide_workout_sets_steps = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity workout sets and steps",
+-    )
+-    hide_gear = Column(
+-        Boolean,
+-        nullable=False,
+-        comment="Hide activity gear",
+-    )
++    _hide_start_time = Column("hide_start_time", Boolean, nullable=True, comment="Hide activity start time")
++    _hide_location = Column("hide_location", Boolean, nullable=True, comment="Hide activity location")
++    _hide_map = Column("hide_map", Boolean, nullable=True, comment="Hide activity map")
++    _hide_hr = Column("hide_hr", Boolean, nullable=True, comment="Hide activity heart rate")
++    _hide_power = Column("hide_power", Boolean, nullable=True, comment="Hide activity power")
++    _hide_cadence = Column("hide_cadence", Boolean, nullable=True, comment="Hide activity cadence")
++    _hide_elevation = Column("hide_elevation", Boolean, nullable=True, comment="Hide activity elevation")
++    _hide_speed = Column("hide_speed", Boolean, nullable=True, comment="Hide activity speed")
++    _hide_pace = Column("hide_pace", Boolean, nullable=True, comment="Hide activity pace")
++    _hide_laps = Column("hide_laps", Boolean, nullable=True, comment="Hide activity laps")
++    _hide_workout_sets_steps = Column("hide_workout_sets_steps", Boolean, nullable=True, comment="Hide activity workout sets and steps")
++    _hide_gear = Column("hide_gear", Boolean, nullable=True, comment="Hide activity gear")
+     tracker_manufacturer = Column(
+         String(length=250),
+         nullable=True,
+@@ -220,6 +171,17 @@ class Activity(Base):
+     # Define a relationship to the Users model
+     users = relationship("Users", back_populates="activities")
+ 
++    # NULL per-activity hide_* inherits from the owner's global privacy row.
++    # viewonly: we never write the global through here. selectin: batch-load the
++    # owner's settings for feed lists, avoiding an N+1 across the resolver.
++    user_privacy_settings = relationship(
++        "UsersPrivacySettings",
++        primaryjoin="Activity.user_id == foreign(UsersPrivacySettings.user_id)",
++        viewonly=True,
++        uselist=False,
++        lazy="selectin",
++    )
++
+     # Define a relationship to the Gear model
+     gear = relationship("Gear", back_populates="activities")
+ 
+@@ -257,3 +219,129 @@ class Activity(Base):
+         back_populates="activity",
+         cascade="all, delete-orphan",
+     )
++
++    # --- hide_* inheritance hybrids ---------------------------------------
++    # getter: raw value if set, else inherit the owner's global. No fallback --
++    # every user is guaranteed a user_privacy_settings row, so a missing one is
++    # a broken invariant we fail loud on. No bool() -- both branches are bool.
++    # No .expression: nothing filters hide_* in SQL; add one only if that changes.
++
++    @hybrid_property
++    def hide_start_time(self) -> bool:
++        if self._hide_start_time is not None:
++            return self._hide_start_time
++        return self.user_privacy_settings.hide_activity_start_time
++
++    @hide_start_time.setter
++    def hide_start_time(self, value: bool | None) -> None:
++        self._hide_start_time = value
++
++    @hybrid_property
++    def hide_location(self) -> bool:
++        if self._hide_location is not None:
++            return self._hide_location
++        return self.user_privacy_settings.hide_activity_location
++
++    @hide_location.setter
++    def hide_location(self, value: bool | None) -> None:
++        self._hide_location = value
++
++    @hybrid_property
++    def hide_map(self) -> bool:
++        if self._hide_map is not None:
++            return self._hide_map
++        return self.user_privacy_settings.hide_activity_map
++
++    @hide_map.setter
++    def hide_map(self, value: bool | None) -> None:
++        self._hide_map = value
++
++    @hybrid_property
++    def hide_hr(self) -> bool:
++        if self._hide_hr is not None:
++            return self._hide_hr
++        return self.user_privacy_settings.hide_activity_hr
++
++    @hide_hr.setter
++    def hide_hr(self, value: bool | None) -> None:
++        self._hide_hr = value
++
++    @hybrid_property
++    def hide_power(self) -> bool:
++        if self._hide_power is not None:
++            return self._hide_power
++        return self.user_privacy_settings.hide_activity_power
++
++    @hide_power.setter
++    def hide_power(self, value: bool | None) -> None:
++        self._hide_power = value
++
++    @hybrid_property
++    def hide_cadence(self) -> bool:
++        if self._hide_cadence is not None:
++            return self._hide_cadence
++        return self.user_privacy_settings.hide_activity_cadence
++
++    @hide_cadence.setter
++    def hide_cadence(self, value: bool | None) -> None:
++        self._hide_cadence = value
++
++    @hybrid_property
++    def hide_elevation(self) -> bool:
++        if self._hide_elevation is not None:
++            return self._hide_elevation
++        return self.user_privacy_settings.hide_activity_elevation
++
++    @hide_elevation.setter
++    def hide_elevation(self, value: bool | None) -> None:
++        self._hide_elevation = value
++
++    @hybrid_property
++    def hide_speed(self) -> bool:
++        if self._hide_speed is not None:
++            return self._hide_speed
++        return self.user_privacy_settings.hide_activity_speed
++
++    @hide_speed.setter
++    def hide_speed(self, value: bool | None) -> None:
++        self._hide_speed = value
++
++    @hybrid_property
++    def hide_pace(self) -> bool:
++        if self._hide_pace is not None:
++            return self._hide_pace
++        return self.user_privacy_settings.hide_activity_pace
++
++    @hide_pace.setter
++    def hide_pace(self, value: bool | None) -> None:
++        self._hide_pace = value
++
++    @hybrid_property
++    def hide_laps(self) -> bool:
++        if self._hide_laps is not None:
++            return self._hide_laps
++        return self.user_privacy_settings.hide_activity_laps
++
++    @hide_laps.setter
++    def hide_laps(self, value: bool | None) -> None:
++        self._hide_laps = value
++
++    @hybrid_property
++    def hide_workout_sets_steps(self) -> bool:
++        if self._hide_workout_sets_steps is not None:
++            return self._hide_workout_sets_steps
++        return self.user_privacy_settings.hide_activity_workout_sets_steps
++
++    @hide_workout_sets_steps.setter
++    def hide_workout_sets_steps(self, value: bool | None) -> None:
++        self._hide_workout_sets_steps = value
++
++    @hybrid_property
++    def hide_gear(self) -> bool:
++        if self._hide_gear is not None:
++            return self._hide_gear
++        return self.user_privacy_settings.hide_activity_gear
++
++    @hide_gear.setter
++    def hide_gear(self, value: bool | None) -> None:
++        self._hide_gear = value
