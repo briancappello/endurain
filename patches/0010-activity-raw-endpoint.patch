@@ -1,0 +1,91 @@
+diff --git a/backend/app/activities/activity/crud.py b/backend/app/activities/activity/crud.py
+index 56ab76b..d75fd1f 100644
+--- a/backend/app/activities/activity/crud.py
++++ b/backend/app/activities/activity/crud.py
+@@ -903,6 +903,50 @@ def get_activity_by_id_from_user_id_or_has_visibility(
+         ) from err
+ 
+ 
++def get_activity_raw_by_id(activity_id: int, user_id: int, db: Session):
++    """Owner-only. Return the RAW per-activity hide_* settings for editing.
++
++    Reads the underscored columns directly, bypassing the resolving hybrids, so
++    the edit form sees the actual setting: None (inherit) / True / False. Not
++    visibility-gated -- raw inheritance settings are private to the owner.
++    """
++    activity = (
++        db.query(activities_models.Activity)
++        .filter(
++            activities_models.Activity.user_id == user_id,
++            activities_models.Activity.id == activity_id,
++        )
++        .first()
++    )
++    if not activity:
++        raise HTTPException(
++            status_code=status.HTTP_404_NOT_FOUND, detail="Activity not found"
++        )
++
++    return activities_schema.ActivityRaw(
++        id=activity.id,
++        name=activity.name,
++        activity_type=activity.activity_type,
++        visibility=activity.visibility,
++        is_hidden=activity.is_hidden,
++        gear_id=activity.gear_id,
++        description=activity.description,
++        private_notes=activity.private_notes,
++        hide_start_time=activity._hide_start_time,
++        hide_location=activity._hide_location,
++        hide_map=activity._hide_map,
++        hide_hr=activity._hide_hr,
++        hide_power=activity._hide_power,
++        hide_cadence=activity._hide_cadence,
++        hide_elevation=activity._hide_elevation,
++        hide_speed=activity._hide_speed,
++        hide_pace=activity._hide_pace,
++        hide_laps=activity._hide_laps,
++        hide_workout_sets_steps=activity._hide_workout_sets_steps,
++        hide_gear=activity._hide_gear,
++    )
++
++
+ def get_activity_by_id_if_is_public(activity_id: int, db: Session):
+     try:
+         # Check if public sharable links are enabled in server settings
+diff --git a/backend/app/activities/activity/router.py b/backend/app/activities/activity/router.py
+index 7b0ca9f..46cc3e5 100644
+--- a/backend/app/activities/activity/router.py
++++ b/backend/app/activities/activity/router.py
+@@ -581,6 +581,31 @@ async def read_activities_activity_from_id(
+     )
+ 
+ 
++@router.get(
++    "/{activity_id}/raw",
++    response_model=activities_schema.ActivityRaw,
++)
++async def read_activity_raw(
++    activity_id: int,
++    _validate_activity_id: Annotated[
++        Callable, Depends(activities_dependencies.validate_activity_id)
++    ],
++    _check_scopes: Annotated[
++        Callable, Security(auth_security.check_scopes, scopes=["activities:read"])
++    ],
++    token_user_id: Annotated[
++        int,
++        Depends(auth_security.get_sub_from_access_token),
++    ],
++    db: Annotated[
++        Session,
++        Depends(core_database.get_db),
++    ],
++):
++    # Owner-only: raw hide_* settings for the edit form.
++    return activities_crud.get_activity_raw_by_id(activity_id, token_user_id, db)
++
++
+ @router.get(
+     "/name/contains/{name}",
+     response_model=list[activities_schema.Activity] | None,
