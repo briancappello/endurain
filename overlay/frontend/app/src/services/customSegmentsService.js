@@ -1,25 +1,25 @@
-/**
- * Service for fetching custom segment and trail data from our custom API endpoints.
- */
-
-const API_BASE = `${window.env.ENDURAIN_HOST}/api/v1/custom`
-
-async function fetchJson(url) {
-  const resp = await fetch(url)
-  if (!resp.ok) return null
-  return resp.json()
-}
+import { fetchGetRequest } from '@/utils/serviceUtils'
+import { fetchPublicGetRequest } from '@/utils/servicePublicUtils'
 
 export const customSegments = {
+  // Custom segments, trails and laps authenticated
   async getActivitySegments(activityId) {
-    return fetchJson(`${API_BASE}/activities/${activityId}/segments`)
+    return fetchGetRequest(`custom/activities/${activityId}/segments`)
   },
-
   async getActivityTrailDescription(activityId) {
-    return fetchJson(`${API_BASE}/activities/${activityId}/trail-description`)
+    return fetchGetRequest(`custom/activities/${activityId}/trail-description`)
   },
-
   async getActivityLaps(activityId) {
-    return fetchJson(`${API_BASE}/activities/${activityId}/laps`)
+    return fetchGetRequest(`custom/activities/${activityId}/laps`)
   },
+  // Custom segments, trails and laps public
+  async getPublicActivitySegments(activityId) {
+    return fetchPublicGetRequest(`public/custom/activities/${activityId}/segments`)
+  },
+  async getPublicActivityTrailDescription(activityId) {
+    return fetchPublicGetRequest(`public/custom/activities/${activityId}/trail-description`)
+  },
+  async getPublicActivityLaps(activityId) {
+    return fetchPublicGetRequest(`public/custom/activities/${activityId}/laps`)
+  }
 }

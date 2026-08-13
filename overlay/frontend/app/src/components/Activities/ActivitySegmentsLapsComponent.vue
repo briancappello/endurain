@@ -1,5 +1,12 @@
 <template>
-  <div v-if="(segments && segments.length > 0) || (laps && laps.length > 0)" class="mt-2 mb-2">
+  <div
+    v-if="
+      (segments && segments.length > 0) ||
+      (laps && laps.length > 0) ||
+      (trails && trails.length > 0)
+    "
+    class="mt-2 mb-2"
+  >
     <ul class="nav nav-pills mb-2 justify-content-center" role="tablist">
       <li v-if="segments && segments.length > 0" class="nav-item" role="presentation">
         <button
@@ -11,6 +18,18 @@
         >
           Segments
           <span class="text-secondary ms-1" style="font-size: 0.85rem">({{ segments.length }})</span>
+        </button>
+      </li>
+      <li v-if="trails && trails.length > 0" class="nav-item" role="presentation">
+        <button
+          class="nav-link link-body-emphasis py-1 px-3"
+          :class="{ active: activeTab === 'trails' }"
+          @click="activeTab = 'trails'"
+          type="button"
+          role="tab"
+        >
+          Trails
+          <span class="text-secondary ms-1" style="font-size: 0.85rem">({{ trails.length }})</span>
         </button>
       </li>
       <li v-if="laps && laps.length > 0" class="nav-item" role="presentation">
@@ -46,6 +65,17 @@
         @lapLeave="$emit('lapLeave')"
       />
     </div>
+
+    <div v-if="activeTab === 'trails' && trails && trails.length > 0">
+      <ActivityTrailsComponent
+        :trails="trails"
+        :hoveredId="hoveredTrailId"
+        :units="units"
+        :activity="activity"
+        @trailHover="$emit('trailHover', $event)"
+        @trailLeave="$emit('trailLeave')"
+      />
+    </div>
   </div>
 </template>
 
@@ -53,19 +83,35 @@
 import { ref } from 'vue'
 import ActivitySegmentsComponent from './ActivitySegmentsComponent.vue'
 import ActivityLapsTableComponent from './ActivityLapsTableComponent.vue'
+import ActivityTrailsComponent from './ActivityTrailsComponent.vue'
 
 const props = defineProps({
   segments: { type: Array, default: () => [] },
   laps: { type: Array, default: () => [] },
+  trails: { type: Array, default: () => [] },
   hoveredSegmentId: { type: Number, default: null },
   hoveredLapId: { type: Number, default: null },
+  // A trail name, not an id.
+  hoveredTrailId: { type: String, default: null },
   units: { type: String, default: 'metric' },
   activity: { type: Object, default: null },
 })
 
-defineEmits(['segmentHover', 'segmentLeave', 'lapHover', 'lapLeave'])
+defineEmits([
+  'segmentHover',
+  'segmentLeave',
+  'lapHover',
+  'lapLeave',
+  'trailHover',
+  'trailLeave',
+])
 
+// Default-tab precedence: trails first, then segments, then laps.
 const activeTab = ref(
-  props.segments && props.segments.length > 0 ? 'segments' : 'laps'
+  props.trails && props.trails.length > 0
+    ? 'trails'
+    : props.segments && props.segments.length > 0
+      ? 'segments'
+      : 'laps',
 )
 </script>

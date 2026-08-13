@@ -3,7 +3,7 @@
 Provides:
 - Separate Alembic migrations (tracked in custom_alembic_version table)
 - activity_metadata table for post-processing state
-- Custom API endpoints at /api/v1/custom/
+- Custom API endpoints at /api/v1/custom/ and /api/v1/public/custom/
 - CLI for sync and post-processing pipeline
 """
 
@@ -43,7 +43,8 @@ def run_migrations():
 
 def register_api(app):
     """Register custom API routes with the FastAPI app."""
-    from custom.api import router
+    from custom.api import public_router, router
 
     app.include_router(router)
+    app.include_router(public_router)
     core_logger.print_to_log("Custom API routes registered")

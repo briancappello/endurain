@@ -15,6 +15,7 @@ import json
 import math
 import os
 import sys
+import time
 from collections import defaultdict
 
 import requests
@@ -39,6 +40,13 @@ MIN_MATCH_FRACTION = 0.03
 # Maximum GPS points to use (downsample if more). 500 is plenty for matching.
 MAX_GPS_POINTS = 500
 
+# Merge near-point runs separated by at most this many decimated points.
+# A real GPS track briefly wanders past DISTANCE_THRESHOLD_M (tree cover,
+# switchbacks, a parallel spur); without this a single trail shatters into
+# dozens of one-point slivers. At a typical decimation step of 2 and ~1s
+# sampling this is roughly a 6-second excursion. Tune against real tracks.
+MAX_RUN_GAP_POINTS = 3
+
 # OSM highway types to consider as trails/paths
 TRAIL_HIGHWAY_TYPES = (
     "path",
@@ -54,6 +62,173 @@ TRAIL_HIGHWAY_TYPES = (
 BBOX_BUFFER_DEG = 0.005
 
 USER_AGENT = "Endurain/1.0 (trail-matcher)"
+
+# --- Overpass request pacing ---
+#
+# These three values are real-world timing knobs, not logic: they are starting
+# points tuned for the PUBLIC overpass-api.de endpoint, which rate-limits hard.
+# A bulk re-match fires one query per activity back to back and roughly half
+# used to come back 429/504. A self-hosted Overpass instance makes all of this
+# mostly unnecessary -- there you can drop the interval to 0 and the attempts
+# to 1. Tune against the endpoint you actually point at.
+
+# Minimum wall-clock gap between two Overpass requests from this process.
+OVERPASS_MIN_INTERVAL_S = 2.0
+
+# Total tries per query, including the first, before giving up.
+OVERPASS_MAX_ATTEMPTS = 3
+
+# First backoff sleep; doubles each retry (3s, 6s, ...).
+OVERPASS_BACKOFF_BASE_S = 3.0
+
+# Monotonic time of the last Overpass request in THIS process. Module-level on
+# purpose: consecutive match_trails() calls in one bulk run must be spaced out,
+# and each call has no idea how many ran before it.
+# ponytail: per-process only. A second worker process gets its own budget; move
+# this to a shared store only if concurrent workers ever start tripping 429s.
+_last_request_at = float("-inf")
+
+
+class TrailMatchUnavailable(Exception):
+    """The Overpass query could not be completed (rate limit, timeout, network).
+
+    Distinct from a successful query that found no trails, which is an empty
+    result. Callers must treat this as retryable and must NOT record it as
+    "no trails found".
+    """
+
+
+def _overpass_post(overpass_url: str, query: str) -> dict:
+    """POST a query to Overpass, throttled and retried, and return parsed JSON.
+
+    Raises:
+        TrailMatchUnavailable: every attempt failed. Never returns an empty
+            result to signal failure -- an empty result means "no trails".
+    """
+    global _last_request_at
+
+    last_error: Exception | None = None
+    for attempt in range(1, OVERPASS_MAX_ATTEMPTS + 1):
+        wait = OVERPASS_MIN_INTERVAL_S - (time.monotonic() - _last_request_at)
+        if wait > 0:
+            time.sleep(wait)
+        _last_request_at = time.monotonic()
+
+        try:
+            resp = requests.post(
+                overpass_url,
+                data={"data": query},
+                headers={"User-Agent": USER_AGENT},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            last_error = e
+            core_logger.print_to_log_and_console(
+                f"Trail matcher: Overpass query failed "
+                f"(attempt {attempt}/{OVERPASS_MAX_ATTEMPTS}): {e}",
+                "warning",
+            )
+            if attempt < OVERPASS_MAX_ATTEMPTS:
+                time.sleep(OVERPASS_BACKOFF_BASE_S * 2 ** (attempt - 1))
+
+    raise TrailMatchUnavailable(str(last_error)) from last_error
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in metres between two WGS84 points."""
+    radius = 6371000.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = p2 - p1
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(a))
+
+
+def _group_into_runs(
+    near_positions: list[int],
+    coord_indices: list[int],
+    max_gap: int = MAX_RUN_GAP_POINTS,
+) -> list[list[int]]:
+    """Group decimated near-point positions into original-index ranges.
+
+    Args:
+        near_positions: ascending positions into the decimated coord arrays.
+            Every position must be a valid index into coord_indices; an
+            out-of-range position raises IndexError.
+        coord_indices: maps a decimated position to its original waypoint index.
+        max_gap: merge runs separated by at most this many decimated points.
+
+    Returns:
+        List of inclusive [start, end] original-waypoint index pairs.
+    """
+    if not near_positions:
+        return []
+
+    runs: list[list[int]] = []
+    start = prev = near_positions[0]
+    for pos in near_positions[1:]:
+        # Consecutive positions differ by 1, so a gap of N skipped points
+        # shows up as a difference of N + 1.
+        if pos - prev <= max_gap + 1:
+            prev = pos
+            continue
+        runs.append([coord_indices[start], coord_indices[prev]])
+        start = prev = pos
+    runs.append([coord_indices[start], coord_indices[prev]])
+    return runs
+
+
+def _index_and_decimate(
+    waypoints: list[dict], max_points: int = MAX_GPS_POINTS
+) -> tuple[list[int], list[tuple[float, float]]]:
+    """Filter waypoints with usable coordinates, then decimate.
+
+    Returns (coord_indices, coords) where coord_indices[i] is the ORIGINAL
+    waypoints index of coords[i], carried through both the filter and the
+    decimation. Never reconstruct these as i * step: waypoints missing lat/lon
+    are dropped here, so that arithmetic is silently wrong for any track with a
+    gap in its GPS stream.
+
+    Guarding on `is not None` (rather than key presence) also keeps an explicit
+    null lat/lon from reaching Point() and failing the whole match.
+
+    Fewer than 2 usable waypoints yields ([], []) -- callers cannot match a
+    track with under two points.
+
+    coords are (lon, lat) ordered, matching Shapely's x/y convention.
+    """
+    indexed = [
+        (i, w["lon"], w["lat"])
+        for i, w in enumerate(waypoints)
+        if w.get("lat") is not None and w.get("lon") is not None
+    ]
+    if len(indexed) < 2:
+        return [], []
+
+    step = max(1, len(indexed) // max_points)
+    indexed = indexed[::step]
+    coord_indices = [i for i, _lon, _lat in indexed]
+    coords = [(lon, lat) for _i, lon, lat in indexed]
+    return coord_indices, coords
+
+
+def _range_distance_m(waypoints: list[dict], ranges: list[list[int]]) -> float:
+    """Sum distance travelled along the waypoints covered by ranges."""
+    total = 0.0
+    for start, end in ranges:
+        prev = None
+        for wp in waypoints[start : end + 1]:
+            lat = wp.get("lat")
+            lon = wp.get("lon")
+            if lat is None or lon is None:
+                continue
+            if prev is not None:
+                total += _haversine_m(prev[0], prev[1], lat, lon)
+            prev = (lat, lon)
+    return round(total, 1)
 
 
 def match_trails(
@@ -73,7 +248,21 @@ def match_trails(
     Returns:
         List of matched trail dicts sorted by match strength:
         [{"name": str, "highway": str, "points_near": int,
-          "points_total": int, "fraction": float, "avg_distance_m": float}, ...]
+          "points_total": int, "fraction": float, "avg_distance_m": float,
+          "ranges": list[list[int]], "distance_m": float}, ...]
+
+        "ranges" are inclusive [start, end] index pairs into the ORIGINAL
+        waypoints list, grouped into contiguous runs. "distance_m" is the
+        distance actually travelled on that trail.
+
+        An empty list means the query succeeded and there is genuinely nothing
+        to match: too few usable waypoints, or no named ways nearby. It never
+        means the query failed.
+
+    Raises:
+        TrailMatchUnavailable: the Overpass query could not be completed after
+            OVERPASS_MAX_ATTEMPTS tries (rate limit, timeout, network). Callers
+            must retry later and must NOT record this as "no trails found".
     """
     if not waypoints or len(waypoints) < 2:
         return []
@@ -81,12 +270,9 @@ def match_trails(
     overpass_url = overpass_url or os.getenv("OVERPASS_API_URL", DEFAULT_OVERPASS_URL)
 
     # --- Extract and downsample GPS points ---
-    coords = [(w["lon"], w["lat"]) for w in waypoints if "lat" in w and "lon" in w]
+    coord_indices, coords = _index_and_decimate(waypoints)
     if len(coords) < 2:
         return []
-
-    step = max(1, len(coords) // MAX_GPS_POINTS)
-    coords = coords[::step]
 
     # --- Compute bounding box ---
     lons = [c[0] for c in coords]
@@ -111,20 +297,10 @@ def match_trails(
         f"out skel qt;"
     )
 
-    try:
-        resp = requests.post(
-            overpass_url,
-            data={"data": query},
-            headers={"User-Agent": USER_AGENT},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        core_logger.print_to_log_and_console(
-            f"Trail matcher: Overpass query failed: {e}", "warning"
-        )
-        return []
+    # Raises TrailMatchUnavailable on failure. Deliberately NOT caught here:
+    # returning [] would be indistinguishable from "no trails nearby", and
+    # callers persist that as a terminal result.
+    data = _overpass_post(overpass_url, query)
 
     # --- Parse Overpass response ---
     nodes = {}
@@ -179,14 +355,17 @@ def match_trails(
         # For each GPS point, check if it's near ANY segment of this trail
         points_near = 0
         total_distance = 0.0
-        for pt in gps_points_utm:
+        near_positions = []
+        for pos, pt in enumerate(gps_points_utm):
             min_dist = min(pt.distance(seg["geometry_utm"]) for seg in segments)
             if min_dist <= distance_threshold_m:
                 points_near += 1
                 total_distance += min_dist
+                near_positions.append(pos)
 
         fraction = points_near / len(gps_points_utm)
         if fraction >= min_match_fraction:
+            ranges = _group_into_runs(near_positions, coord_indices)
             results.append(
                 {
                     "name": name,
@@ -195,6 +374,8 @@ def match_trails(
                     "points_total": len(gps_points_utm),
                     "fraction": round(fraction, 4),
                     "avg_distance_m": round(total_distance / max(points_near, 1), 1),
+                    "ranges": ranges,
+                    "distance_m": _range_distance_m(waypoints, ranges),
                 }
             )
 

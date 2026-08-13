@@ -1,0 +1,54 @@
+diff --git a/backend/app/activities/activity/utils.py b/backend/app/activities/activity/utils.py
+index 183e623..6349a27 100644
+--- a/backend/app/activities/activity/utils.py
++++ b/backend/app/activities/activity/utils.py
+@@ -791,6 +791,13 @@ async def store_activity(
+             parsed_info["sets"], created_activity.id, db
+         )
+ 
++    # CUSTOM PATCH: queue post-processing (merge, segments, trail matching).
++    # Placed here, after the streams exist, because trail matching reads the
++    # GPS stream. Imported lazily to avoid a circular import via custom.models.
++    from custom.trigger import schedule_pipeline
++
++    schedule_pipeline()
++
+     # Return the created activity
+     return created_activity
+ 
+diff --git a/backend/app/profile/import_service.py b/backend/app/profile/import_service.py
+index fc0622b..682f7fb 100644
+--- a/backend/app/profile/import_service.py
++++ b/backend/app/profile/import_service.py
+@@ -357,6 +357,14 @@ class ImportService:
+         except (OSError, IOError) as e:
+             raise FileSystemError(f"File system error during import: {str(e)}") from e
+ 
++        # CUSTOM PATCH: queue post-processing. Profile import writes activities
++        # directly via activities_crud.create_activity, bypassing both
++        # store_activity and the Strava path, so it needs its own hook. Once for
++        # the whole restore rather than per activity.
++        from custom.trigger import schedule_pipeline
++
++        schedule_pipeline()
++
+         return {"detail": "Import completed", "imported": self.counts}
+ 
+     def _load_single_json(
+diff --git a/backend/app/strava/activity_utils.py b/backend/app/strava/activity_utils.py
+index 90b4bf3..492007c 100644
+--- a/backend/app/strava/activity_utils.py
++++ b/backend/app/strava/activity_utils.py
+@@ -404,6 +404,12 @@ async def save_activity_streams_laps(
+         # Create the laps in the database
+         activity_laps_crud.create_activity_laps(laps, created_activity.id, db)
+ 
++    # CUSTOM PATCH: queue post-processing. Strava does not go through
++    # activities_utils.store_activity, so it needs its own hook.
++    from custom.trigger import schedule_pipeline
++
++    schedule_pipeline()
++
+     # return the created activity
+     return created_activity
+ 

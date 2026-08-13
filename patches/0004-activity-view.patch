@@ -1,8 +1,8 @@
 diff --git a/frontend/app/src/views/ActivityView.vue b/frontend/app/src/views/ActivityView.vue
-index deed3ea..9cfee14 100644
+index deed3ea..cbe58d9 100644
 --- a/frontend/app/src/views/ActivityView.vue
 +++ b/frontend/app/src/views/ActivityView.vue
-@@ -64,9 +64,90 @@
+@@ -64,9 +64,94 @@
          :activityActivityMedia="activityActivityMedia"
          :source="'activity'"
          @activityMediaDeleted="removeMediaFromActivity"
@@ -75,25 +75,29 @@ index deed3ea..9cfee14 100644
 +      <p class="mb-2" style="font-size:0.9rem;color:var(--bs-secondary-color);font-style:italic;">{{ trailDescription }}</p>
 +    </div>
 +
-+    <!-- custom: segments and laps tabs -->
++    <!-- custom: segments, laps and trails tabs -->
 +    <ActivitySegmentsLapsComponent
-+      v-if="(activitySegments && activitySegments.length > 0) || (customActivityLaps && customActivityLaps.length > 0)"
++      v-if="(activitySegments && activitySegments.length > 0) || (customActivityLaps && customActivityLaps.length > 0) || (activityTrails && activityTrails.length > 0)"
 +      :segments="activitySegments"
 +      :laps="customActivityLaps"
++      :trails="activityTrails"
 +      :hoveredSegmentId="hoveredSegmentId"
 +      :hoveredLapId="hoveredLapId"
++      :hoveredTrailId="hoveredTrailId"
 +      :units="units"
 +      :activity="activity"
 +      @segmentHover="(seg) => { hoveredSegmentId = seg.id; activityMapRef?.highlightSegment(seg.latlngs) }"
 +      @segmentLeave="() => { hoveredSegmentId = null; activityMapRef?.clearSegmentHighlight() }"
 +      @lapHover="(lap) => { hoveredLapId = lap.id; activityMapRef?.highlightSegment(lap.latlngs) }"
 +      @lapLeave="() => { hoveredLapId = null; activityMapRef?.clearSegmentHighlight() }"
++      @trailHover="(trail) => { hoveredTrailId = trail.name; activityMapRef?.highlightSegment(trail.latlngs) }"
++      @trailLeave="() => { hoveredTrailId = null; activityMapRef?.clearSegmentHighlight() }"
 +    />
 +
      <!-- gear zone -->
      <hr
        class="mb-2 mt-2"
-@@ -171,68 +252,6 @@
+@@ -171,68 +256,6 @@
        </div>
      </div>
  
@@ -162,7 +166,7 @@ index deed3ea..9cfee14 100644
      <!-- back button -->
      <BackButtonComponent />
    </div>
-@@ -250,6 +269,8 @@ import { push } from 'notivue'
+@@ -250,6 +273,8 @@ import { push } from 'notivue'
  // Importing the components
  import ActivitySummaryComponent from '@/components/Activities/ActivitySummaryComponent.vue'
  import ActivityMapComponent from '@/components/Activities/ActivityMapComponent.vue'
@@ -171,7 +175,7 @@ index deed3ea..9cfee14 100644
  import ActivityMandAbovePillsComponent from '@/components/Activities/ActivityMandAbovePillsComponent.vue'
  import ActivityBellowMPillsComponent from '@/components/Activities/ActivityBellowMPillsComponent.vue'
  import LoadingComponent from '@/components/GeneralComponents/LoadingComponent.vue'
-@@ -266,6 +287,7 @@ import { activityWorkoutSteps } from '@/services/activityWorkoutStepsService'
+@@ -266,6 +291,7 @@ import { activityWorkoutSteps } from '@/services/activityWorkoutStepsService'
  import { activityExerciseTitles } from '@/services/activityExerciseTitlesService'
  import { activitySets } from '@/services/activitySetsService'
  import { activityMedia } from '@/services/activityMediaService'
@@ -179,7 +183,7 @@ index deed3ea..9cfee14 100644
  // Importing the utils
  import {
    activityTypeIsCycling,
-@@ -299,6 +321,39 @@ const activityActivityExerciseTitles = ref([])
+@@ -299,6 +325,42 @@ const activityActivityExerciseTitles = ref([])
  const activityActivitySets = ref([])
  const alertPrivacyMessage = ref(null)
  const isHiddenMessage = ref(null)
@@ -187,8 +191,11 @@ index deed3ea..9cfee14 100644
 +const activitySegments = ref([])
 +const customActivityLaps = ref([])
 +const trailDescription = ref(null)
++const activityTrails = ref([])
 +const hoveredSegmentId = ref(null)
 +const hoveredLapId = ref(null)
++// A trail name, not an id -- trails have no database id.
++const hoveredTrailId = ref(null)
 +const activityMapRef = ref(null)
 +const elevationStream = ref([])
 +const speedStream = ref([])
@@ -219,22 +226,34 @@ index deed3ea..9cfee14 100644
  
  async function submitDeleteGearFromActivity() {
    try {
-@@ -500,6 +555,32 @@ async function loadActivity() {
+@@ -500,6 +562,44 @@ async function loadActivity() {
      push.error(`${t('activityView.errorMessageActivityNotFound')} - ${error}`)
    }
  
 +
-+    // CUSTOM: Fetch segments, trails, laps and extract elevation/speed streams
++    // CUSTOM: Fetch segments, trails, laps and extract elevation/speed streams.
++    // Anonymous viewers MUST use the public endpoints. The authed ones return
++    // 401, which serviceUtils turns into a token-refresh attempt and, on
++    // failure, a hard redirect to /login?sessionExpired -- wrecking a page that
++    // is supposed to be publicly viewable. The public endpoints never refresh.
 +    try {
-+      const [segs, trails, laps] = await Promise.all([
-+        customSegments.getActivitySegments(route.params.id),
-+        customSegments.getActivityTrailDescription(route.params.id),
-+        customSegments.getActivityLaps(route.params.id),
-+      ])
++      const fetchers = authStore.isAuthenticated
++        ? [
++            customSegments.getActivitySegments(route.params.id),
++            customSegments.getActivityTrailDescription(route.params.id),
++            customSegments.getActivityLaps(route.params.id),
++          ]
++        : [
++            customSegments.getPublicActivitySegments(route.params.id),
++            customSegments.getPublicActivityTrailDescription(route.params.id),
++            customSegments.getPublicActivityLaps(route.params.id),
++          ]
++      const [segs, trails, laps] = await Promise.all(fetchers)
 +      activitySegments.value = segs || []
 +      customActivityLaps.value = laps || []
 +      trailDescription.value = trails?.description || null
-+      console.log('[custom] Loaded segments:', activitySegments.value.length, 'laps:', customActivityLaps.value.length, 'trail:', trailDescription.value)
++      activityTrails.value = trails?.trails || []
++      console.log('[custom] Loaded segments:', activitySegments.value.length, 'laps:', customActivityLaps.value.length, 'trails:', activityTrails.value.length)
 +    } catch (e) {
 +      console.warn('[custom] Failed to fetch custom data:', e)
 +    }
@@ -252,15 +271,17 @@ index deed3ea..9cfee14 100644
    isLoading.value = false
    if (authStore.user.id === activity.value.user_id) {
      alertPrivacyMessage.value = t('activityView.alertPrivacyMessage')
-@@ -527,6 +608,11 @@ watch(
+@@ -527,6 +627,13 @@ watch(
        activityActivitySets.value = []
        alertPrivacyMessage.value = null
        isHiddenMessage.value = null
 +      activitySegments.value = []
 +      customActivityLaps.value = []
 +      trailDescription.value = null
++      activityTrails.value = []
 +      hoveredSegmentId.value = null
 +      hoveredLapId.value = null
++      hoveredTrailId.value = null
        loadActivity()
      }
    }

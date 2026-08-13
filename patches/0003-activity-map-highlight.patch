@@ -1,8 +1,8 @@
 diff --git a/frontend/app/src/components/Activities/ActivityMapComponent.vue b/frontend/app/src/components/Activities/ActivityMapComponent.vue
-index bc7a8f3..cf79c88 100644
+index bc7a8f3..5d1317b 100644
 --- a/frontend/app/src/components/Activities/ActivityMapComponent.vue
 +++ b/frontend/app/src/components/Activities/ActivityMapComponent.vue
-@@ -211,6 +211,160 @@ const submitDeleteMediaFromActivity = async (mediaId) => {
+@@ -211,6 +211,182 @@ const submitDeleteMediaFromActivity = async (mediaId) => {
    }
  }
  
@@ -33,18 +33,12 @@ index bc7a8f3..cf79c88 100644
 +    return (toDeg(Math.atan2(y, x)) + 360) % 360
 +  }
 +
-+  const highlightSegment = (latlngs) => {
-+    clearSegmentHighlight()
-+    if (!leafletMap.value || !latlngs || latlngs.length < 2) return
-+
-+    // Main highlight polyline
-+    segmentHighlightLayer = L.polyline(latlngs, {
-+      color: '#f97316',
-+      weight: 5,
-+      opacity: 0.9,
-+      lineJoin: 'round',
-+      lineCap: 'round',
-+    }).addTo(leafletMap.value)
++  // Place directional arrowheads along ONE section (a flat [lat,lon] list).
++  // Factored out of highlightSegment so a multi-section trail runs it per
++  // section: cumDist and idxAtDist below index into a single contiguous list,
++  // so feeding them a nested array would draw arrows at bogus positions.
++  const _addArrowheadsForSection = (latlngs) => {
++    if (!latlngs || latlngs.length < 2) return
 +
 +    // Build cumulative distance array
 +    const cumDist = [0]
@@ -108,6 +102,34 @@ index bc7a8f3..cf79c88 100644
 +      }).addTo(leafletMap.value)
 +      segmentArrowheads.push(arrow)
 +    }
++  }
++
++  // Accepts EITHER a flat [lat,lon] list (segments, laps) OR a list of such
++  // sections (trails, traversed in disjoint stretches). A single trail runs on
++  // and off its named way, so its sections must stay separate: one flat polyline
++  // would draw straight lines across the map between them.
++  const highlightSegment = (input) => {
++    clearSegmentHighlight()
++    if (!leafletMap.value || !input || input.length === 0) return
++
++    // Normalise to a list of sections. A flat list has [lat,lon] number pairs at
++    // the top level; a sectioned list has arrays there. Sniff the first element.
++    const sections = Array.isArray(input[0][0]) ? input : [input]
++    const drawable = sections.filter((s) => Array.isArray(s) && s.length >= 2)
++    if (drawable.length === 0) return
++
++    // One layer for all sections. Leaflet renders nested coordinate arrays as a
++    // multi-polyline natively, so clearSegmentHighlight needs no changes.
++    segmentHighlightLayer = L.polyline(drawable, {
++      color: '#f97316',
++      weight: 5,
++      opacity: 0.9,
++      lineJoin: 'round',
++      lineCap: 'round',
++    }).addTo(leafletMap.value)
++
++    // Arrowheads are computed per section against its own cumulative distance.
++    drawable.forEach((section) => _addArrowheadsForSection(section))
 +  }
 +
 +  const clearSegmentHighlight = () => {

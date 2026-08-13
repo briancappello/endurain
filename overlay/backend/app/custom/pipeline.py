@@ -23,7 +23,8 @@ from custom.segments import extract_segments_for_activity
 from trail_matcher import match_trails, generate_trail_name
 
 # Bump this to re-process all activities on next pipeline run.
-CURRENT_PIPELINE_VERSION = 3
+# 4: trail matches now carry per-trail "ranges" + "distance_m" for map hover.
+CURRENT_PIPELINE_VERSION = 4
 
 # GPS stream type in Endurain
 STREAM_TYPE_LATLON = 7
@@ -115,10 +116,16 @@ def _process_one(db, activity_id: int):
         _run_segment_extraction(db, activity_id, meta)
 
     # Step 2: Trail matching
-    _run_trail_matching(db, activity_id, meta)
+    trail_ok = _run_trail_matching(db, activity_id, meta)
 
-    # Mark as processed at current version
-    meta.pipeline_version = CURRENT_PIPELINE_VERSION
+    # Only advance pipeline_version on success. Leaving it behind is what makes
+    # _process_all pick this activity up again next run -- Overpass failures are
+    # usually transient rate limiting, and bumping the version here would make
+    # them permanent.
+    # ponytail: retries every run, forever. Add a bounded attempt counter if a
+    # genuinely unmatchable activity ever starts costing real Overpass budget.
+    if trail_ok:
+        meta.pipeline_version = CURRENT_PIPELINE_VERSION
     meta.updated_at = datetime.now(timezone.utc)
     db.commit()
 
@@ -155,8 +162,12 @@ def _run_segment_extraction(db, activity_id: int, meta: ActivityMetadata):
         meta.segments_extracted = False
 
 
-def _run_trail_matching(db, activity_id: int, meta: ActivityMetadata):
-    """Run trail matching for a single activity."""
+def _run_trail_matching(db, activity_id: int, meta: ActivityMetadata) -> bool:
+    """Run trail matching for a single activity.
+
+    Returns True if the activity reached a terminal state (matched or genuinely
+    no trails), False if it failed and should be retried on a later run.
+    """
     overpass_url = os.getenv("OVERPASS_API_URL")
 
     # Fetch GPS waypoints
@@ -171,7 +182,7 @@ def _run_trail_matching(db, activity_id: int, meta: ActivityMetadata):
     if not result or not result[0]:
         meta.trail_match_status = "no_trails"
         meta.trail_match_at = datetime.now(timezone.utc)
-        return
+        return True
 
     waypoints = json.loads(result[0]) if isinstance(result[0], str) else result[0]
 
@@ -183,16 +194,20 @@ def _run_trail_matching(db, activity_id: int, meta: ActivityMetadata):
             "warning",
         )
         meta.trail_match_status = "error"
-        meta.trail_match_result = {"error": str(e)}
+        # Deliberately do NOT touch meta.trail_match_result here. A transient
+        # Overpass 429 used to overwrite it (with an error dict, or with null via
+        # the no_trails path) and permanently destroy real matches. Stale-but-real
+        # matches are strictly better than destroyed ones -- the status field
+        # already says the last attempt failed. Do not "tidy" this back.
         meta.trail_match_at = datetime.now(timezone.utc)
-        return
+        return False
 
     meta.trail_match_at = datetime.now(timezone.utc)
 
     if not matches:
         meta.trail_match_status = "no_trails"
         meta.trail_match_result = None
-        return
+        return True
 
     meta.trail_match_status = "matched"
     meta.trail_match_result = matches
@@ -204,7 +219,7 @@ def _run_trail_matching(db, activity_id: int, meta: ActivityMetadata):
     ).fetchone()
 
     if not activity:
-        return
+        return True
 
     current_name, activity_type = activity
 
@@ -220,3 +235,5 @@ def _run_trail_matching(db, activity_id: int, meta: ActivityMetadata):
             core_logger.print_to_log(
                 f"Pipeline: activity {activity_id} renamed to '{new_name}'"
             )
+
+    return True
