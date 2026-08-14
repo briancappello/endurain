@@ -1,34 +1,23 @@
 #!/usr/bin/env python3
-"""Self-check for custom.trigger's debounce/coalescing behaviour.
+"""Pure-logic tests for custom.trigger's debounce/coalescing behaviour.
 
-Runs standalone, no framework and no database:
-    python3 tests/test_trigger.py
+No database:
+    build/app/.venv/bin/python -m pytest tests/test_trigger.py
 
-Stubs out core.logger and custom.pipeline so only the scheduling logic is
-under test.
+Stubs core.logger and custom.pipeline so only the scheduling logic is under
+test. custom.trigger imports custom.pipeline LAZILY (inside its timer), so that
+stub is kept past the import via ``keep=`` (see tests/_isolation.py); the rest
+of the stubs are reverted so nothing leaks into the shared pytest session.
 """
 
-import sys
 import threading
 import time
 import types
 from pathlib import Path
 
+from _isolation import import_isolated
+
 OVERLAY = Path(__file__).resolve().parent.parent / "overlay" / "backend" / "app"
-sys.path.insert(0, str(OVERLAY))
-
-# --- stub core.logger -------------------------------------------------------
-core = types.ModuleType("core")
-core_logger = types.ModuleType("core.logger")
-core_logger.print_to_log = lambda *a, **k: None
-core.logger = core_logger
-sys.modules["core"] = core
-sys.modules["core.logger"] = core_logger
-
-# --- stub custom package (avoid custom/__init__ pulling in SQLAlchemy) ------
-custom_pkg = types.ModuleType("custom")
-custom_pkg.__path__ = [str(OVERLAY / "custom")]
-sys.modules["custom"] = custom_pkg
 
 runs = []
 run_gate = threading.Event()
@@ -40,11 +29,27 @@ def _fake_process_pending(activity_id=None):
     run_gate.wait(timeout=5)
 
 
-pipeline_stub = types.ModuleType("custom.pipeline")
-pipeline_stub.process_pending = _fake_process_pending
-sys.modules["custom.pipeline"] = pipeline_stub
+_core = types.ModuleType("core")
+_core_logger = types.ModuleType("core.logger")
+_core_logger.print_to_log = lambda *a, **k: None
+_core.logger = _core_logger
 
-import custom.trigger as trigger  # noqa: E402
+_custom_pkg = types.ModuleType("custom")
+_custom_pkg.__path__ = [str(OVERLAY / "custom")]
+
+_pipeline_stub = types.ModuleType("custom.pipeline")
+_pipeline_stub.process_pending = _fake_process_pending
+
+trigger = import_isolated(
+    "custom.trigger",
+    stubs={
+        "core": _core,
+        "core.logger": _core_logger,
+        "custom": _custom_pkg,
+        "custom.pipeline": _pipeline_stub,
+    },
+    keep=("custom.pipeline",),  # trigger lazy-imports custom.pipeline at run time
+)
 
 trigger.DEBOUNCE_SECONDS = 0.15
 
@@ -117,9 +122,4 @@ def test_scheduling_never_raises():
         trigger.threading.Timer = orig
 
 
-if __name__ == "__main__":
-    tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
-    for t in tests:
-        t()
-        print(f"  ok  {t.__name__}")
-    print(f"\n{len(tests)} passed")
+

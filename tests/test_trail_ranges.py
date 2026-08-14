@@ -1,33 +1,32 @@
 #!/usr/bin/env python3
-"""Self-check for trail_matcher: run grouping, index mapping, Overpass failures.
+"""Pure-logic tests for trail_matcher: grouping, index mapping, Overpass failures.
 
-trail_matcher imports shapely/pyproj/requests, so run this with the build venv:
-    ./build.sh   # once, if build/ is missing
-    build/app/.venv/bin/python tests/test_trail_ranges.py
+trail_matcher imports shapely/pyproj/requests, so run with the build venv:
+    build/app/.venv/bin/python -m pytest tests/test_trail_ranges.py
 
 Only core.logger is stubbed; everything else is the real module. The Overpass
 tests stub trail_matcher's `requests` and `time` so nothing touches the network
-and nothing actually sleeps.
+and nothing actually sleeps. The core stubs are installed only for the import
+and reverted immediately (see tests/_isolation.py), so nothing leaks into the
+shared pytest session.
 """
 
-import sys
 import types
-from pathlib import Path
 
 import requests
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "overlay" / "backend" / "app"))
+from _isolation import import_isolated
 
-core = types.ModuleType("core")
-core_logger = types.ModuleType("core.logger")
-core_logger.print_to_log = lambda *a, **k: None
-core_logger.print_to_log_and_console = lambda *a, **k: None
-core.logger = core_logger
-sys.modules["core"] = core
-sys.modules["core.logger"] = core_logger
+_core = types.ModuleType("core")
+_core_logger = types.ModuleType("core.logger")
+_core_logger.print_to_log = lambda *a, **k: None
+_core_logger.print_to_log_and_console = lambda *a, **k: None
+_core.logger = _core_logger
 
-import trail_matcher as tm  # noqa: E402
+tm = import_isolated(
+    "trail_matcher",
+    stubs={"core": _core, "core.logger": _core_logger},
+)
 
 
 def test_consecutive_points_collapse_to_one_run():
@@ -363,9 +362,4 @@ def test_too_few_waypoints_returns_empty_without_touching_network():
     assert stub.calls == 0, stub.calls
 
 
-if __name__ == "__main__":
-    tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
-    for t in tests:
-        t()
-        print(f"  ok  {t.__name__}")
-    print(f"\n{len(tests)} passed")
+

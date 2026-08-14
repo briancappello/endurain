@@ -14,65 +14,63 @@ The behaviour mirrored is upstream Endurain's own:
   activities/activity_laps/crud.py. ``[]`` rather than a 404, so a hidden
   activity is indistinguishable from one that simply has no laps.
 
-Runs standalone, no framework, no network and no database. custom.api imports
-fastapi and sqlalchemy, so use the build venv:
-    build/app/.venv/bin/python tests/test_api_privacy_gates.py
+No network and no database. custom.api imports fastapi and sqlalchemy, so use
+the build venv:
+    build/app/.venv/bin/python -m pytest tests/test_api_privacy_gates.py
 
 Only the module's load-time dependencies are stubbed. The payload builders
 themselves run for real against a fake ``db`` that returns canned rows, and are
 always reached through the module object (``api._laps_payload``) so a mutation
-harness can swap them out at runtime.
+harness can swap them out at runtime. The stubs are installed only for the
+import and reverted immediately (see tests/_isolation.py), so nothing leaks into
+the shared pytest session.
 """
 
-import sys
 import types
 from pathlib import Path
 
+from _isolation import import_isolated
+
 OVERLAY = Path(__file__).resolve().parent.parent / "overlay" / "backend" / "app"
-sys.path.insert(0, str(OVERLAY))
-
-
-def _stub(name, **attrs):
-    """Register a stub module (and expose it on its parent package)."""
-    mod = types.ModuleType(name)
-    for k, v in attrs.items():
-        setattr(mod, k, v)
-    sys.modules[name] = mod
-    if "." in name:
-        parent, _, child = name.rpartition(".")
-        setattr(sys.modules[parent], child, mod)
-    return mod
 
 
 def _unused(*_a, **_k):  # pragma: no cover - route deps are never invoked
     raise AssertionError("route dependency called; builders are tested directly")
 
 
-# --- stub what custom.api pulls in at import time ---------------------------
-_stub("core")
-_stub("core.logger", print_to_log=lambda *a, **k: None)
-_stub("core.config", ROOT_PATH="/api/v1")
-_stub("core.database", get_db=_unused)
+def _stub(**attrs):
+    mod = types.ModuleType("stub")
+    for k, v in attrs.items():
+        setattr(mod, k, v)
+    return mod
 
-_stub("activities")
-_stub("activities.activity")
-_stub(
-    "activities.activity.crud",
-    get_activity_by_id_from_user_id_or_has_visibility=_unused,
-    get_activity_by_id_if_is_public=_unused,
-)
-_stub("activities.activity.dependencies", validate_activity_id=_unused)
-
-_stub("auth")
-_stub("auth.security", check_scopes=_unused, get_sub_from_access_token=_unused)
 
 # custom/__init__ imports alembic and the ORM models; the package is only
-# needed as a namespace for custom.api.
-custom_pkg = types.ModuleType("custom")
-custom_pkg.__path__ = [str(OVERLAY / "custom")]
-sys.modules["custom"] = custom_pkg
+# needed as a namespace for custom.api, so it needs a real __path__.
+_custom_pkg = types.ModuleType("custom")
+_custom_pkg.__path__ = [str(OVERLAY / "custom")]
 
-import custom.api as api  # noqa: E402
+# All load-time deps custom.api pulls in. import_isolated reverts them after the
+# import (custom.api has no lazy/runtime imports that need them).
+api = import_isolated(
+    "custom.api",
+    stubs={
+        "core": None,
+        "core.logger": _stub(print_to_log=lambda *a, **k: None),
+        "core.config": _stub(ROOT_PATH="/api/v1"),
+        "core.database": _stub(get_db=_unused),
+        "activities": None,
+        "activities.activity": None,
+        "activities.activity.crud": _stub(
+            get_activity_by_id_from_user_id_or_has_visibility=_unused,
+            get_activity_by_id_if_is_public=_unused,
+        ),
+        "activities.activity.dependencies": _stub(validate_activity_id=_unused),
+        "auth": None,
+        "auth.security": _stub(check_scopes=_unused, get_sub_from_access_token=_unused),
+        "custom": _custom_pkg,
+    },
+)
 
 # --- canned data ------------------------------------------------------------
 
@@ -372,9 +370,4 @@ def test_hide_power_and_cadence_null_segment_metrics():
     assert segs["average_grade"] == 5.5, segs
 
 
-if __name__ == "__main__":
-    tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
-    for t in tests:
-        t()
-        print(f"  ok  {t.__name__}")
-    print(f"\n{len(tests)} passed")
+
