@@ -74,8 +74,13 @@ FROM docker.io/library/python:3.13.14-slim-bookworm AS runtime
 # freshly mounted volume. From apt and PINNED: upstream fetches "the latest
 # release" from the GitHub API at build time, which is both unpinned and a
 # network dependency in the runtime stage.
+#
+# libmagic1 is a FORK requirement upstream's Dockerfile does not carry: the
+# custom file-upload layer (safeuploads -> python-magic) dlopen's libmagic at
+# import, so without it the app crashes on startup with "failed to find
+# libmagic". apt pulls libmagic-mgc (the magic database) as its dependency.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl gosu \
+ && apt-get install -y --no-install-recommends ca-certificates curl gosu libmagic1 \
  && rm -rf /var/lib/apt/lists/* \
  && gosu nobody true
 
