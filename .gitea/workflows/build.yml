@@ -1,0 +1,25 @@
+# The homelab bootstrap owns the pinned tools and explicit environment endpoints.
+# Host-mode steps run inside a disposable, non-root Kubernetes Job, not on seed.
+name: build
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+jobs:
+  image:
+    runs-on: p1-buildkit
+    timeout-minutes: 45
+    steps:
+      - name: Checkout with Git LFS
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ci-build checkout
+
+      - name: Build and push
+        working-directory: src
+        env:
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: ci-build push

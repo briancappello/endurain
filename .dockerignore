@@ -1,0 +1,12 @@
+.git
+local
+docs
+build
+build.sh
+README.md
+tests
+.playwright-mcp
+.pytest_cache
+.superpowers
+**/__pycache__
+**/*.pyc
