@@ -9,3 +9,4 @@
 0009-activity-raw-schema.patch
 0010-activity-raw-endpoint.patch
 0011-edit-activity-tristate.patch
+0012-start-nonroot.patch

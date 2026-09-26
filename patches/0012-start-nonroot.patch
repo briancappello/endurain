@@ -1,0 +1,47 @@
+--- a/docker/start.sh
++++ b/docker/start.sh
+@@ -22,7 +22,16 @@
+ validate_id "$UID"
+ validate_id "$GID"
+ 
+-echo_info_log "UID=$UID, GID=$GID"
++# NON-ROOT (fork patch 0012). The image runs as UID:GID itself (USER in the
++# Containerfile, runAsUser in Kubernetes), so there is nothing to drop from and
++# no ownership to fix: the volume is group-owned through fsGroup. Only a root
++# start keeps upstream's chown + gosu behaviour.
++RUNNING_UID="$(id -u)"
++if [ "$RUNNING_UID" = "0" ]; then
++    echo_info_log "UID=$UID, GID=$GID (starting as root; will drop privileges)"
++else
++    echo_info_log "running as uid=$RUNNING_UID gid=$(id -g), not root: no chown, no privilege drop"
++fi
+ 
+ # Create required directories with correct ownership
+ # These directories are created as root before switching to the non-root user
+@@ -49,8 +58,13 @@
+         echo_info_log "Creating directory: $dir"
+         mkdir -p "$dir"
+     fi
+-    echo_info_log "Setting ownership recursively of $dir to $UID:$GID"
+-    chown -R "$UID:$GID" "$dir"
++    if [ "$RUNNING_UID" = "0" ]; then
++        echo_info_log "Setting ownership recursively of $dir to $UID:$GID"
++        chown -R "$UID:$GID" "$dir"
++    elif [ ! -w "$dir" ]; then
++        echo_error_log "$dir is not writable by uid $RUNNING_UID (set fsGroup on its volume)"
++        exit 1
++    fi
+ done
+ 
+ if [ -n "$ENDURAIN_HOST" ]; then
+@@ -80,4 +94,7 @@
+     CMD="$CMD --proxy-headers"
+ fi
+ 
+-exec gosu "$UID:$GID" $CMD
+\ No newline at end of file
++if [ "$RUNNING_UID" = "0" ]; then
++    exec gosu "$UID:$GID" $CMD
++fi
++exec $CMD
+\ No newline at end of file

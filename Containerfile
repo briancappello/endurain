@@ -106,5 +106,16 @@ COPY --from=compose /src/backend/app ./
 COPY --from=compose /src/docker/start.sh /docker-entrypoint.d/start.sh
 RUN chmod +x /docker-entrypoint.d/start.sh
 
+# NON-ROOT BY DEFAULT. The paths start.sh writes are made the app user's here,
+# at build time, so nothing needs root at run time: the data mount point (its
+# contents come from the volume, group-owned through fsGroup), the logs
+# directory, and env.js, which start.sh rewrites in place from ENDURAIN_HOST
+# (the file, not its root-owned directory). Patch 0012 makes start.sh skip
+# upstream's chown and gosu when it is not root.
+RUN mkdir -p /app/backend/data /app/backend/logs \
+ && touch /app/frontend/dist/env.js \
+ && chown "${UID}:${GID}" /app/backend/data /app/backend/logs /app/frontend/dist/env.js
+USER 1000:1000
+
 EXPOSE 8080
 ENTRYPOINT ["/docker-entrypoint.d/start.sh"]
